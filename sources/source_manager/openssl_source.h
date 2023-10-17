@@ -16,7 +16,11 @@
 #define _SOURCES_OPENSSL_SOURCE_H_
 
 #include <string>
+#include <vector>
+#include <cstdint>
 
+#include "absl/container/flat_hash_map.h"
+#include "absl/status/status.h"
 #include "ebpf_monitor/source/source.h"
 #include "ebpf_monitor/utils/elf_reader.h"
 
@@ -29,13 +33,14 @@ namespace ebpf_monitor {
 class OpenSslSource : public Source {
  public:
   OpenSslSource();
-  absl::Status AddPID(uint64_t pid);
+  absl::Status AddPID(pid_t pid) override;
+  absl::Status RemovePID(pid_t pid) override;
   ~OpenSslSource() override;
   std::string ToString() const override { return "OpenSslSource"; };
-
  private:
   absl::Status RegisterProbes(ElfReader* elf_reader, std::string& path,
                               uint64_t pid);
+  absl::flat_hash_map<std::string, std::vector<pid_t>> pid_path_map_;
 };
 
 }  // namespace ebpf_monitor

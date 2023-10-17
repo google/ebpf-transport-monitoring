@@ -40,6 +40,7 @@ class Probe {
   void set_link(bpf_link *link) { link_ = link; }
   const std::string &get_name() const { return name_; }
   virtual absl::Status Attach() = 0;
+  virtual bool is_attached() const { return link_ != nullptr; }
   virtual absl::Status Detach() {
     if (link_ == nullptr) return absl::OkStatus();
     auto err = bpf_link__destroy(link_);
@@ -108,6 +109,8 @@ class UProbe : public Probe {
     set_prog_fd(bpf_link__fd(link));
     return absl::OkStatus();
   }
+
+  absl::string_view binary_name() const { return binary_name_; }
 
  private:
   std::string binary_name_;

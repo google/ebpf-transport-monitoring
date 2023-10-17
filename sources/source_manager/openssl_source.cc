@@ -13,10 +13,19 @@
 // limitations under the License.
 
 #include "sources/source_manager/openssl_source.h"
+#include <sys/types.h>
 
 #include <string>
 #include <vector>
+#include <iostream>
+#include <memory>
 
+#include "absl/status/status.h"
+#include "absl/time/time.h"
+
+#include "ebpf_monitor/source/data_ctx.h"
+#include "ebpf_monitor/utils/elf_reader.h"
+#include "ebpf_monitor/source/probes.h"
 #include "ebpf_monitor/source/source.h"
 #include "ebpf_monitor/utils/proc_reader.h"
 #include "bpf/libbpf.h"
@@ -129,7 +138,9 @@ absl::Status OpenSslSource::RegisterProbes(ElfReader* elf_reader,
   return absl::OkStatus();
 }
 
-absl::Status OpenSslSource::AddPID(uint64_t pid) {
+absl::Status OpenSslSource::AddPID(pid_t pid) {
+  absl::Status status = Source::AddPID(pid);
+  if (!status.ok()) { return status; }
   auto path = GetBinaryPath(pid);
   if (!path.ok()) {
     return path.status();
@@ -137,8 +148,18 @@ absl::Status OpenSslSource::AddPID(uint64_t pid) {
 
   std::cout << "Path:" << *path << std::endl;
   ElfReader elf_reader(*path);
+  status = RegisterProbes(&elf_reader, *path, pid);
+  if (!status.ok()) { return status; }
 
-  return RegisterProbes(&elf_reader, *path, pid);
+  pid_path_map_[*path].push_back(pid);
+  return absl::OkStatus();
+}
+
+absl::Status OpenSslSource::RemovePID(pid_t pid) {
+  absl::Status status = Source::RemovePID(pid);
+  if (!status.ok()) { return status; }
+  // TODO: Destroy Probes.
+  return absl::OkStatus();
 }
 
 }  // namespace ebpf_monitor

@@ -14,24 +14,24 @@
 
 #include "ebpf_monitor/utils/elf_reader.h"
 
+#include <cxxabi.h>  // IWYU pragma: keep
 #include <fcntl.h>
 #include <string.h>
+#include <sys/auxv.h>
 
 #include <cstdint>
 #include <cstdlib>
 #include <fstream>
 #include <iostream>
 #include <string>
-#include <sys/auxv.h>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
+#include "elf.h"
 #include "gelf.h"
 #include "libelf.h"
-#include "elf.h"
-
 
 namespace ebpf_monitor {
 

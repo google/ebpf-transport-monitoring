@@ -17,6 +17,7 @@
 
 #include <string>
 #include <vector>
+#include <memory>
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -47,7 +48,8 @@ class Source {
   virtual absl::Status DetachProbe(absl::string_view probe_name);
   virtual absl::StatusOr<std::shared_ptr<DataCtx>> GetMap(
       absl::string_view map_name);
-  virtual absl::Status FilterPID(pid_t pid);
+  virtual absl::Status AddPID(pid_t pid);
+  virtual absl::Status RemovePID(pid_t pid);
   virtual std::string ToString() const = 0;
   virtual ~Source() = default;
 

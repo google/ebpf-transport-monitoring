@@ -106,7 +106,7 @@ cc_library(
         ":os_helper",
         ":proc_reader",
         ":utils",
-        "//sources/bpf_sources:sources_obj",
+        "//third_party/bpf_sources:sources_obj",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",

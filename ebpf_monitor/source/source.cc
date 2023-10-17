@@ -136,6 +136,7 @@ cleanup:
 }
 
 absl::Status Source::ShareMaps() {
+  char errBuffer[50] = {0};
   struct bpf_map* map;
   bpf_object__for_each_map(map, obj_) {
     const char* name = bpf_map__name(map);
@@ -144,10 +145,12 @@ absl::Status Source::ShareMaps() {
     }
     auto map_fd = MapMemory::GetInstance().GetMap(name);
     if (map_fd.ok()) {
-      int fd = bpf_map__reuse_fd(map, *map_fd);
-      if (fd < 0) {
+      int err = bpf_map__reuse_fd(map, *map_fd);
+      if (err < 0) {
+        libbpf_strerror(err, errBuffer, sizeof(errBuffer));
         return absl::InternalError(
-            absl::StrFormat("Could not reuse fd %d for map %s", *map_fd, name));
+            absl::StrFormat("Could not reuse fd %d for map %s: %s",
+                            *map_fd, name, errBuffer));
       }
     }
   }
@@ -204,7 +207,7 @@ void Source::Cleanup() {
   if (obj_) bpf_object__close(obj_);
 }
 
-absl::Status Source::FilterPID(pid_t pid) {
+absl::Status Source::AddPID(pid_t pid) {
   if (init_ == false) {
     return absl::InternalError("Uninitialized");
   }
@@ -217,6 +220,21 @@ absl::Status Source::FilterPID(pid_t pid) {
                                 (void*)&value, BPF_ANY);
   if (err != 0) {
     return absl::InternalError("Error added PID to filter map");
+  }
+  return absl::OkStatus();
+}
+
+absl::Status Source::RemovePID(pid_t pid) {
+  if (init_ == false) {
+    return absl::InternalError("Uninitialized");
+  }
+  auto map_ctx = GetMap(pid_filter_map_);
+  if (!map_ctx.ok()) {
+    return map_ctx.status();
+  }
+  int err = bpf_map_delete_elem((*map_ctx)->get_bpf_map_fd(), (void*)&pid);
+  if (err != 0) {
+    return absl::InternalError("Error removing PID from filter map");
   }
   return absl::OkStatus();
 }

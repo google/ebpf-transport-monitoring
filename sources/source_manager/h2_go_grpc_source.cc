@@ -16,7 +16,9 @@
 #include "sources/source_manager/h2_go_grpc_source.h"
 
 #include <memory>
+#include <iostream>
 #include <string>
+#include <cstdint>
 #include <utility>
 #include <vector>
 
@@ -24,12 +26,14 @@
 #include "absl/status/status.h"
 #include "absl/strings/str_format.h"
 #include "ebpf_monitor/source/probes.h"
+#include "ebpf_monitor/utils/elf_reader.h"
 #include "ebpf_monitor/utils/dwarf_reader.h"
 #include "ebpf_monitor/utils/proc_reader.h"
 #include "ebpf_monitor/utils/sym_addrs.h"
 #include "sources/common/h2_symaddrs.h"
 #include "sources/common/sym_types.h"
 #include "bpf/libbpf.h"
+
 #include "re2/re2.h"
 
 #define EBPF_TM_RETURN_IF_ERROR(status) \
@@ -329,7 +333,8 @@ absl::Status H2GoGrpcSource::RegisterProbes(ElfReader* elf_reader,
   return CreateProbes(elf_reader, path, close_functions, "probe_close");
 }
 
-absl::Status H2GoGrpcSource::AddPID(uint64_t pid) {
+absl::Status H2GoGrpcSource::AddPID(pid_t pid) {
+  absl::Status status;
   int major_version, minor_version;
   if (bpf_cfg_.find(pid) != bpf_cfg_.end()) {
     return absl::AlreadyExistsError(absl::StrFormat("Pid %d", pid));
@@ -341,13 +346,15 @@ absl::Status H2GoGrpcSource::AddPID(uint64_t pid) {
   // If probes are already attached no need to do the following steps again.
   // Just copy the config to the corresponding to that pid
   if (pid_path_map_.find(*path) != pid_path_map_.end()) {
-    bpf_cfg_[pid] = bpf_cfg_[pid_path_map_[*path]];
+    status = Source::AddPID(pid);
+    EBPF_TM_RETURN_IF_ERROR(status);
+    bpf_cfg_[pid] = bpf_cfg_[pid_path_map_[*path][0]];
+    pid_path_map_[*path].push_back(pid);
     return absl::OkStatus();
   }
   std::cout << "Path:" << *path << std::endl;
   ElfReader elf_reader(*path);
-
-  absl::Status status =
+  status =
       GetGolangVersion(&elf_reader, &major_version, &minor_version);
   EBPF_TM_RETURN_IF_ERROR(status);
 
@@ -371,28 +378,67 @@ absl::Status H2GoGrpcSource::AddPID(uint64_t pid) {
   EBPF_TM_RETURN_IF_ERROR(status);
 
   bpf_cfg_[pid] = bpf_cfg;
-  pid_path_map_[*path] = pid;
+  pid_path_map_[*path].push_back(pid);
+  status = Source::AddPID(pid);
+  EBPF_TM_RETURN_IF_ERROR(AddCfg(pid));
+  EBPF_TM_RETURN_IF_ERROR(status);
   return absl::OkStatus();
 }
 
-absl::Status H2GoGrpcSource::LoadMaps() {
-  absl::Status status = Source::LoadMaps();
+absl::Status H2GoGrpcSource::RemovePID(pid_t pid) {
+  absl::Status status = Source::RemovePID(pid);
   EBPF_TM_RETURN_IF_ERROR(status);
+  bpf_cfg_.erase(pid);
+  std::string binary_path;
 
+  for (auto&[path, pid_map] : pid_path_map_) {
+    for (int i=0; i < pid_map.size(); ++i) {
+      if (pid_map[i] == pid) {
+        binary_path = path;
+        pid_map.erase(pid_map.begin() + i);
+        break;
+      }
+    }
+  }
+
+  if (!binary_path.empty()) {
+    if (pid_path_map_.find(binary_path) != pid_path_map_.end()) {
+      if (pid_path_map_[binary_path].empty()) {
+        for (int i = probes_.size() - 1; i >= 0; i--) {
+          UProbe* uprobe = static_cast<UProbe*> (probes_[i].get());
+          if (uprobe->binary_name() == binary_path) {
+            status = uprobe->Detach();
+            if (!status.ok()) {
+              std::cerr << status << "\n";
+            }
+            probes_.erase(probes_.begin() + i);
+          }
+        }
+      }
+    }
+  }
+  // Destroy Probes.
+  return absl::OkStatus();
+}
+
+absl::Status H2GoGrpcSource::AddCfg(uint64_t pid) {
   auto map = bpf_object__find_map_by_name(obj_, "h2_cfg");
   if (map == nullptr) {
     return absl::NotFoundError("Could not find config map");
   }
 
-  for (auto& bpf_cfg_it : bpf_cfg_) {
-    int upd_status =
-        bpf_map__update_elem(map, &bpf_cfg_it.first, sizeof(uint64_t),
-                             &bpf_cfg_it.second, sizeof(h2_cfg_t), BPF_ANY);
-    if (upd_status != 0) {
-      return absl::InternalError(
-          absl::StrFormat("Could not set initial value for map %d: %d",
-                          bpf_map__type(map), upd_status));
-    }
+  if (bpf_cfg_.find(pid) == bpf_cfg_.end()) {
+    return absl::NotFoundError(absl::StrFormat("Config not found for pid %d",
+                                               pid));
+  }
+
+  int upd_status =
+      bpf_map__update_elem(map, &pid, sizeof(uint64_t),
+                            &bpf_cfg_[pid], sizeof(h2_cfg_t), 0/*BPF_ANY*/);
+  if (upd_status != 0) {
+    return absl::InternalError(
+        absl::StrFormat("Could not set initial value for map %d: %d",
+                        bpf_map__type(map), upd_status));
   }
   return absl::OkStatus();
 }

@@ -76,6 +76,7 @@ cc_library(
     hdrs = ["openssl_source.h"],
     deps = [
         "//ebpf_monitor/source",
+        "//ebpf_monitor/source:data_ctx",
         "//ebpf_monitor/source:probes",
         "//ebpf_monitor/utils:elf_reader",
         "//ebpf_monitor/utils:proc_reader",
@@ -85,6 +86,7 @@ cc_library(
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/time",
         "@libbpf",
     ],
 )

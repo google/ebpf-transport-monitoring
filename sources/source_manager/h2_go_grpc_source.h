@@ -15,8 +15,14 @@
 #ifndef _SOURCES_SOURCE_MANAGER_H2_GO_GRPC_SOURCE_H_
 #define _SOURCES_SOURCE_MANAGER_H2_GO_GRPC_SOURCE_H_
 
+#include <sys/types.h>
 #include <string>
+#include <cstdint>
+#include <vector>
 
+#include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
+#include "absl/status/status.h"
 #include "sources/common/h2_symaddrs.h"
 #include "ebpf_monitor/source/source.h"
 #include "ebpf_monitor/utils/elf_reader.h"
@@ -25,8 +31,9 @@ namespace ebpf_monitor {
 class H2GoGrpcSource : public Source {
  public:
   H2GoGrpcSource();
-  absl::Status AddPID(uint64_t pid);
-  absl::Status LoadMaps() override;
+  absl::Status AddPID(pid_t pid) override;
+  absl::Status RemovePID(pid_t pid) override;
+
   ~H2GoGrpcSource() override;
   std::string ToString() const override { return "H2GoGrpcSource"; };
 
@@ -37,8 +44,9 @@ class H2GoGrpcSource : public Source {
                             const char* probe_func);
   absl::Status RegisterProbes(ElfReader* elf_reader, std::string& path,
                               uint64_t pid);
+  absl::Status AddCfg(uint64_t pid);
   absl::flat_hash_map<uint64_t, h2_cfg_t> bpf_cfg_;
-  absl::flat_hash_map<std::string, uint64_t> pid_path_map_;
+  absl::flat_hash_map<std::string, std::vector<pid_t>> pid_path_map_;
 };
 
 }  // namespace ebpf_monitor
