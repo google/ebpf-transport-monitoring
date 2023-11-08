@@ -41,8 +41,10 @@ type simulation struct {
 	inflightreads  map[int64]map[string]string
 }
 
+var clientIndexg uint32
+
 func (sim *simulation) GetClient(bkup bool) *http.Client {
-	clientIndex := atomic.AddUint32(&sim.clientIndex, 1) % uint32(len(sim.clients))
+	clientIndex := atomic.AddUint32(&clientIndexg, 1) % uint32(len(sim.clients))
 	if bkup {
 		return sim.backup[clientIndex]
 	}
@@ -50,7 +52,7 @@ func (sim *simulation) GetClient(bkup bool) *http.Client {
 }
 
 func (sim * simulation) ClearBenchmarkRequests() (string, error) {
-	req, err := http.NewRequest("POST", "https://www.webchannel.sandbox.google.com/staging/static/rpctransportbenchmark", nil)
+	req, err := http.NewRequest("POST", "https://www.webchannel.sandbox.google.com/dev/static/rpctransportbenchmark", nil)
 	if err != nil {
 		return  "", err
 	}
@@ -112,7 +114,7 @@ func (sim *simulation) HandleAck() {
 }
 
 func (sim *simulation) RetryReads() {
-	req, err := http.NewRequest("POST", "https://www.webchannel.sandbox.google.com/staging/static/rpctransportbenchmark", nil)
+	req, err := http.NewRequest("POST", "https://www.webchannel.sandbox.google.com/dev/static/rpctransportbenchmark", nil)
 	if err != nil {
 		fmt.Println("Error creating request:", err)
 		return
