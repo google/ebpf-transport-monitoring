@@ -15,20 +15,24 @@
 #include "sources/source_manager/openssl_source.h"
 #include <sys/types.h>
 
+#include <cstdint>
 #include <string>
 #include <vector>
 #include <iostream>
 #include <memory>
 
+#include "absl/log/log.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/time/time.h"
 
 #include "ebpf_monitor/source/data_ctx.h"
+#include "ebpf_monitor/exporter/data_types.h"
+
 #include "ebpf_monitor/utils/elf_reader.h"
 #include "ebpf_monitor/source/probes.h"
 #include "ebpf_monitor/source/source.h"
 #include "ebpf_monitor/utils/proc_reader.h"
-#include "bpf/libbpf.h"
 
 namespace ebpf_monitor {
 
@@ -93,6 +97,12 @@ OpenSslSource::OpenSslSource()
                                                     MetricKind::kNone,
                                                     {MetricUnitType::kNone}},
                                          absl::Seconds(60), true, true)},
+              {std::make_shared<DataCtx>("data_sample_cntl",
+                                        MetricDesc{MetricType::kUint64,
+                                            MetricType::kUint8,
+                                            MetricKind::kNone,
+                                            {MetricUnitType::kNone}},
+                                 absl::Seconds(60), true, true)},
           },
           "./openssl_bpf.o", "./openssl_core.o", "openssl_pid_filter") {}
 
@@ -103,6 +113,8 @@ absl::Status OpenSslSource::RegisterProbes(ElfReader* elf_reader,
   absl::flat_hash_set<std::string> functions{
       {"SSL_read"},
       {"SSL_write"},
+      {"SSL_set_bio"},
+      {"BIO_write"}
   };
 
   auto status = elf_reader->FindSymbols(functions, ElfReader::kOffset);
@@ -132,9 +144,38 @@ absl::Status OpenSslSource::RegisterProbes(ElfReader* elf_reader,
     probes_.push_back(
         std::make_shared<UProbe>("probe_ret_SSL_write", path, *offset, true));
   }
+
+  offset = elf_reader->GetSymbol("SSL_set_bio");
+  if (!offset.ok()) {
+    std::cerr << offset.status() << "\n";
+    count++;
+  } else {
+    probes_.push_back(
+        std::make_shared<UProbe>("probe_entry_SSL_set_bio",
+                                 path, *offset, false));
+  }
+
+  offset = elf_reader->GetSymbol("BIO_write");
+  if (!offset.ok()) {
+    std::cerr << offset.status() << "\n";
+    count++;
+  } else {
+    probes_.push_back(
+        std::make_shared<UProbe>("probe_entry_bio_write",
+                                 path, *offset, false));
+  }
   if (count != 0) {
     return absl::InternalError("Did not find some function offsets");
   }
+  status = Source::AddPID(pid);
+  if (!status.ok()){
+    return status;
+  }
+  status = Source::LoadProbes();
+  if (!status.ok()){
+    return status;
+  }
+  LOG(INFO) << "Registered Probes";
   return absl::OkStatus();
 }
 

@@ -22,7 +22,7 @@ configure_make(
     name = "libevent",
     lib_source = ":libevent_all",
     out_lib_dir = "lib",
-    out_static_libs = ["libevent.a"],
-    out_shared_libs = ["libevent.so"],
+    out_static_libs = ["libevent.a", "libevent_pthreads.a"],
+    out_shared_libs = ["libevent.so", "libevent_pthreads.so"],
     visibility = ["//visibility:public"],
 )

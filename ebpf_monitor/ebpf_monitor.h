@@ -18,14 +18,12 @@
 #include <memory>
 #include "absl/status/status.h"
 #include "ebpf_monitor/data_manager.h"
-#include "event2/event.h"
 #include "sources/source_manager/map_source.h"
 #include "ebpf_monitor/source/source.h"
 #include "ebpf_monitor/exporter/log_exporter.h"
 #include "ebpf_monitor/correlator/correlator.h"
 #include "ebpf_monitor/exporter/metric_exporter.h"
 #include "absl/container/flat_hash_map.h"
-
 
 namespace ebpf_monitor {
 
@@ -38,6 +36,7 @@ class EbpfMonitor {
   absl::Status Init(bool dry_run);
   absl::Status Start();
   absl::Status Monitor(pid_t pid);
+  absl::Status StopMonitoring(pid_t pid);
 
  private:
   EbpfMonitor();
@@ -47,7 +46,6 @@ class EbpfMonitor {
   absl::Status LoadEbpf();
   absl::Status RegisterCorrelators();
   absl::Status LoadProbes();
-  struct event_base *base_;
   DataManager data_manager_;
   LogExporterInterface *logger_;
   MetricExporterInterface *metric_exporter_;

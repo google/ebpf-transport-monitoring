@@ -24,6 +24,7 @@
 #include "absl/strings/str_cat.h"
 #include "correlators/h2_go_correlator.h"
 #include "correlators/openssl_correlator.h"
+#include "ebpf_monitor/utils/event_manager.h"
 #include "ebpf_monitor/data_manager.h"
 #include "ebpf_monitor/correlator/correlator.h"
 #include "ebpf_monitor/exporter/log_exporter.h"
@@ -38,6 +39,7 @@
 #include "sources/source_manager/openssl_source.h"
 #include "sources/source_manager/tcp_source.h"
 #include "event2/event.h"
+#include "event2/thread.h"
 
 #define EBPF_TM_RETURN_IF_ERROR(cmd) \
   {absl::Status status = cmd;       \
@@ -48,6 +50,7 @@
 ABSL_FLAG(bool, extract_source, true, "Extract source from linked tar");
 ABSL_FLAG(bool, file_log, false, "Log to file");
 ABSL_FLAG(bool, host_agg, false, "Aggregate at host level");
+ABSL_FLAG(bool, stdin_eof, true, "Exit on EOF on stdin.");
 ABSL_FLAG(bool, opencensus_log, false,
           "Use opencensus to export.");
 ABSL_FLAG(std::string, gcp_creds, "", "service acoount credentials");
@@ -57,18 +60,16 @@ ABSL_FLAG(std::vector<std::string>, custom_labels, std::vector<std::string>(),
 
 namespace ebpf_monitor{
 
-EbpfMonitor::EbpfMonitor(): base_(event_base_new()),
-      data_manager_(base_),
+EbpfMonitor::EbpfMonitor(): data_manager_(),
       logger_(nullptr),
       metric_exporter_(nullptr) {
 }
 
 absl::Status EbpfMonitor::MapSourceInit(){
   /* Maps need to be loaded first so that we can share fds*/
-  EBPF_TM_RETURN_IF_ERROR(
-      map_source_.Init(absl::GetFlag(FLAGS_extract_source)));
-
   if (!dry_run_) {
+    EBPF_TM_RETURN_IF_ERROR(
+      map_source_.Init(absl::GetFlag(FLAGS_extract_source)));
     EBPF_TM_RETURN_IF_ERROR(map_source_.LoadObj());
     EBPF_TM_RETURN_IF_ERROR(map_source_.LoadMaps());
   }
@@ -131,6 +132,8 @@ void EbpfMonitor::CreateSourcesCorrelators(){
   correlators_["openssl"] = std::make_shared<ebpf_monitor::OpenSslCorrelator>();
   correlators_["openssl"]->AddSource(ebpf_monitor::Layer::kHTTP2,
                                      sources_["openssl"]);
+  correlators_["openssl"]->AddSource(ebpf_monitor::Layer::kTCP,
+                                    sources_["tcp"]);
   for (const auto& iter : correlators_) {
     logger_->RegisterCorrelator(iter.second);
     metric_exporter_->RegisterCorrelator(iter.second);
@@ -139,6 +142,9 @@ void EbpfMonitor::CreateSourcesCorrelators(){
 
 absl::Status EbpfMonitor::Init(bool dry_run){
   dry_run_ = dry_run;
+  if (evthread_use_pthreads() != 0) {
+    return absl::InternalError("events with threading not supported.");
+  }
   EBPF_TM_RETURN_IF_ERROR(data_manager_.Init());
   EBPF_TM_RETURN_IF_ERROR(CreateLoggers());
   EBPF_TM_RETURN_IF_ERROR(logger_->Init());
@@ -160,40 +166,40 @@ absl::Status EbpfMonitor::LoadEbpf() {
           iter->second->Init(absl::GetFlag(FLAGS_extract_source)));
       EBPF_TM_RETURN_IF_ERROR(iter->second->LoadObj());
       EBPF_TM_RETURN_IF_ERROR(iter->second->LoadMaps());
-    }
 
-    auto log_sources = iter->second->GetLogSources();
-    for (uint32_t i = 0; i < log_sources.size(); i++) {
-      if (log_sources[i]->is_internal() == false) {
-        status = logger_->RegisterLog(std::string(log_sources[i]->get_name()),
-                                    log_sources[i]->get_log_desc());
+      auto log_sources = iter->second->GetLogSources();
+      for (uint32_t i = 0; i < log_sources.size(); i++) {
+        if (log_sources[i]->is_internal() == false) {
+          status = logger_->RegisterLog(std::string(log_sources[i]->get_name()),
+                                      log_sources[i]->get_log_desc());
+          if (!status.ok()) {
+            if (log_sources[i]->is_shared() && !absl::IsAlreadyExists(status)) {
+              return status;
+            }
+          }
+        }
+        status = data_manager_.Register(log_sources[i]);
         if (!status.ok()) {
-          if (log_sources[i]->is_shared() && !absl::IsAlreadyExists(status)) {
+          if (log_sources[i]->is_shared() && !absl::IsAlreadyExists(status)){
             return status;
           }
         }
       }
-      status = data_manager_.Register(log_sources[i]);
-      if (!status.ok()) {
-        if (log_sources[i]->is_shared() && !absl::IsAlreadyExists(status)){
-          return status;
-        }
-      }
-    }
-    auto metric_sources = iter->second->GetMetricSources();
-    for (uint32_t i = 0; i < metric_sources.size(); i++) {
-      if (metric_sources[i]->is_internal() == false) {
-        status = metric_exporter_->RegisterMetric(
-            std::string(metric_sources[i]->get_name()),
-            metric_sources[i]->get_metric_desc());
-        if (!status.ok()) {
-          if (metric_sources[i]->is_shared() &&
-              !absl::IsAlreadyExists(status)){
-            return status;
+      auto metric_sources = iter->second->GetMetricSources();
+      for (uint32_t i = 0; i < metric_sources.size(); i++) {
+        if (metric_sources[i]->is_internal() == false) {
+          status = metric_exporter_->RegisterMetric(
+              std::string(metric_sources[i]->get_name()),
+              metric_sources[i]->get_metric_desc());
+          if (!status.ok()) {
+            if (metric_sources[i]->is_shared() &&
+                !absl::IsAlreadyExists(status)){
+              return status;
+            }
           }
         }
+        EBPF_TM_RETURN_IF_ERROR(data_manager_.Register(metric_sources[i]));
       }
-      EBPF_TM_RETURN_IF_ERROR(data_manager_.Register(metric_sources[i]));
     }
   }
   return absl::OkStatus();
@@ -236,10 +242,15 @@ void CheckEOF(int, short, void *arg) { // NOLINT
 
 absl::Status EbpfMonitor::Start(){
   struct event *ev;
-  ev = event_new(base_, STDIN_FILENO, EV_READ | EV_PERSIST, CheckEOF, base_);
-  event_add(ev, nullptr);
-  EBPF_TM_RETURN_IF_ERROR(LoadProbes());
-  event_base_dispatch(base_);
+  auto base = EventManager::GetInstance().event_base();
+  if (absl::GetFlag(FLAGS_stdin_eof)) {
+    ev = event_new(base, STDIN_FILENO, EV_READ | EV_PERSIST, CheckEOF, base);
+    event_add(ev, nullptr);
+  }
+  if (!dry_run_) {
+    EBPF_TM_RETURN_IF_ERROR(LoadProbes());
+  }
+  EventManager::GetInstance().Start();
   return absl::OkStatus();  // To keep compiler happy
 }
 
@@ -260,4 +271,25 @@ absl::Status EbpfMonitor::Monitor(pid_t pid){
   return absl::InternalError("Could not find tracepoints");
 }
 
+
+absl::Status EbpfMonitor::StopMonitoring(pid_t pid){
+  /* The code below is ordered as tcp source is installed for all pids.
+  The other sources are installed for only specific pid hence we remove the 
+  pid from each source succesively till one of the returns true in which case
+  we don't have to do go through any othe sources.*/
+  auto status = sources_["tcp"]->RemovePID(pid);
+  if (!status.ok()) {
+    return status;
+  }
+  status = sources_["h2_golang"]->RemovePID(pid);
+  if (status.ok()) {
+    return absl::OkStatus();
+  }
+  // Note that this line executes when the above statement fails.
+  status = sources_["openssl"]->RemovePID(pid);
+  if (status.ok()) {
+    return absl::OkStatus();
+  }
+  return absl::InternalError("Could not find tracepoints");
+}
 }  // namespace ebpf_monitor

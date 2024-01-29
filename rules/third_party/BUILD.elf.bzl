@@ -23,6 +23,7 @@ configure_make(
     lib_source = ":elfutils_all",
     configure_options = [
         "--disable-debuginfod",
+        "--without-zstd",
     ],
     out_lib_dir = "lib",
     out_shared_libs = [

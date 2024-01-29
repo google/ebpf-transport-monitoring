@@ -21,6 +21,11 @@
 #include <stdint.h>
 #endif
 
+// The following macros define where the correlation information is
+// collected from.
+#define OPENSSL_LEVEL       1
+#define TCP_LEVEL           2
+
 typedef struct {
   uint8_t laddr[CORRELATOR_IP_MAX];
   uint8_t raddr[CORRELATOR_IP_MAX];
@@ -46,7 +51,14 @@ typedef struct {
 in openssl correlator*/
 typedef struct {
   openssl_mdata_t mdata;
-  uint8_t info[16];
+  uint8_t info[24];
 } openssl_correlation;
+
+// In case the mdata signifies type kSslCorrelationInfo
+// this struct will be used to carry information.
+typedef struct data_sample {
+  uint64_t data;
+  uint8_t level;
+}data_sample_t;
 
 #endif

@@ -31,9 +31,8 @@
 namespace ebpf_monitor {
 class DataManager {
  public:
-  DataManager() = delete;
+  DataManager();
   ~DataManager();
-  DataManager(struct event_base *base);
   absl::Status Init();
   absl::Status Register(std::shared_ptr<DataCtx> ctx);
   void AddExternalLogHandler(LogHandlerInterface *log_handler);
@@ -67,7 +66,6 @@ class DataManager {
   std::vector<MetricHandlerInterface *> ext_metric_handlers_;
   std::vector<LogHandlerInterface *> ext_log_handlers_;
   std::vector<struct event *> events_;
-  struct event_base *base_;
   void *memory_;
 };
 

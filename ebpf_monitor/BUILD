@@ -27,6 +27,8 @@ cc_library(
         "//ebpf_monitor/exporter:log_exporter",
         "//ebpf_monitor/exporter:metric_exporter",
         "//ebpf_monitor/source:data_ctx",
+        "//ebpf_monitor/utils:event_manager",
+        "@com_github_libevent_libevent//:libevent",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/status",
@@ -34,7 +36,6 @@ cc_library(
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/time",
         "@libbpf",
-        "@libevent",
     ],
 )
 
@@ -50,6 +51,7 @@ cc_library(
         "//ebpf_monitor/exporter:log_exporter",
         "//ebpf_monitor/exporter:metric_exporter",
         "//ebpf_monitor/source",
+        "//ebpf_monitor/utils:event_manager",
         "//exporters:file_exporter",
         "//exporters:gcp_exporter",
         "//exporters:oc_gcp_exporter",
@@ -60,11 +62,11 @@ cc_library(
         "//sources/source_manager:openssl_source",
         "//sources/source_manager:tcp_source",
         "//third_party/bpf_sources:sources",
+        "@com_github_libevent_libevent//:libevent",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
-        "@libevent",
         "@zlib",
     ],
 )

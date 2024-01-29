@@ -36,10 +36,14 @@ cc_library(
     srcs = ["map_source.cc"],
     hdrs = ["map_source.h"],
     deps = [
+        "//ebpf_monitor/exporter:data_types",
         "//ebpf_monitor/source",
         "//ebpf_monitor/source:data_ctx",
         "//ebpf_monitor/utils:map_memory",
         "//ebpf_monitor/utils:source_helper",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/time",
         "@libbpf",
     ],
 )
@@ -75,6 +79,7 @@ cc_library(
     ],
     hdrs = ["openssl_source.h"],
     deps = [
+        "//ebpf_monitor/exporter:data_types",
         "//ebpf_monitor/source",
         "//ebpf_monitor/source:data_ctx",
         "//ebpf_monitor/source:probes",
@@ -84,6 +89,8 @@ cc_library(
         "//sources/common:defines",
         "//sources/common:syms",
         "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/log",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/time",

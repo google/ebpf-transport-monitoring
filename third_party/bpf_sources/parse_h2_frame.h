@@ -123,7 +123,6 @@ static __always_inline int parse_h2_frame(void *ctx, char *buf_ptr,
   }
 
   stream_id = bpf_ntohl(stream_id);
-//  bpf_trace_printk (fmt, sizeof(fmt), client, stream_id, frame_type);
   curr_loc += 4;
 
   switch (frame_type) {
@@ -221,7 +220,6 @@ static __always_inline int parse_h2_frame(void *ctx, char *buf_ptr,
     }
     // Header Frame
     case H2_HEADERS: {
-      // bpf_trace_printk(fmt, sizeof(fmt), frame_type);
       if (unlikely(client)) {
         send_h2_headers(ctx, event, stream_id);
       }
@@ -230,6 +228,11 @@ static __always_inline int parse_h2_frame(void *ctx, char *buf_ptr,
     default:
       break;
   }
+
+  if ((frame_flags & H2_END_STREAM) != 0){
+    send_h2_end(ctx, event, stream_id);
+  }
+
   return frame_length + FRAME_HEADER_SIZE;
 }
 

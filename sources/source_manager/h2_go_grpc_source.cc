@@ -380,8 +380,9 @@ absl::Status H2GoGrpcSource::AddPID(pid_t pid) {
   bpf_cfg_[pid] = bpf_cfg;
   pid_path_map_[*path].push_back(pid);
   status = Source::AddPID(pid);
-  EBPF_TM_RETURN_IF_ERROR(AddCfg(pid));
   EBPF_TM_RETURN_IF_ERROR(status);
+  EBPF_TM_RETURN_IF_ERROR(AddCfg(pid));
+  EBPF_TM_RETURN_IF_ERROR(Source::LoadProbes());
   return absl::OkStatus();
 }
 
@@ -415,6 +416,7 @@ absl::Status H2GoGrpcSource::RemovePID(pid_t pid) {
           }
         }
       }
+      pid_path_map_.erase(binary_path);
     }
   }
   // Destroy Probes.

@@ -116,6 +116,7 @@ absl::Status Source::LoadObj() {
 absl::Status Source::LoadProbes() {
   absl::Status status;
   for (auto& probe : probes_) {
+    if (probe->is_attached()) continue;
     auto prog =
         bpf_object__find_program_by_name(obj_, probe->get_name().c_str());
     if (libbpf_get_error(prog)) {

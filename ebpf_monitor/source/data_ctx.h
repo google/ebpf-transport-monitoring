@@ -15,6 +15,9 @@
 #ifndef _EBPF_MONITOR_SOURCE_DATA_CTX_H_
 #define _EBPF_MONITOR_SOURCE_DATA_CTX_H_
 
+
+#include "absl/status/status.h"
+#include "absl/strings/str_format.h"
 #include "absl/strings/string_view.h"
 #include "absl/time/time.h"
 #include "ebpf_monitor/exporter/data_types.h"
@@ -49,6 +52,38 @@ class DataCtx {
   void set_map(bpf_map *map) { map_ = map; }
   void IncrementLostEvents(uint32_t lost_events) {
     lost_events_ += lost_events;
+  }
+  absl::Status AddMapEntry (const void * key, const void * value){
+    if (type_ == kLog) {
+      return absl::InvalidArgumentError
+          ("Data can only be added to metric type");
+    }
+    auto err = bpf_map__update_elem(map_, key,
+                                   getSize(metric_desc_.key_type), value,
+                                   getSize (metric_desc_.value_type), BPF_ANY);
+    if (err) {
+      char errBuffer[128] = {0};
+      libbpf_strerror(err, errBuffer, sizeof(errBuffer));
+      return absl::InternalError(
+          absl::StrFormat("AddMapEntry Failed %s", errBuffer));
+    }
+    return absl::OkStatus();
+  }
+
+  absl::Status DeleteMapEntry (const void * key){
+    if (type_ == kLog) {
+      return absl::InvalidArgumentError
+          ("Data can only be added to metric type");
+    }
+    auto err = bpf_map__delete_elem(map_, key,
+                                   getSize(metric_desc_.key_type), 0);
+    if (err) {
+      char errBuffer[128] = {0};
+      libbpf_strerror(err, errBuffer, sizeof(errBuffer));
+      return absl::InternalError(
+          absl::StrFormat("DeleteMapEntry Failed %s", errBuffer));
+    }
+    return absl::OkStatus();
   }
   uint32_t GetLostEvents() { return lost_events_; }
   int get_bpf_map_fd() { return bpf_map_fd_; }

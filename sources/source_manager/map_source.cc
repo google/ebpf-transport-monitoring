@@ -15,9 +15,15 @@
 #include "sources/source_manager/map_source.h"
 #include <string>
 #include <vector>
+#include <memory>
 
+#include "absl/status/status.h"
+#include "absl/strings/str_format.h"
+#include "absl/time/time.h"
 #include "ebpf_monitor/source/source.h"
 #include "ebpf_monitor/utils/map_memory.h"
+#include "ebpf_monitor/source/data_ctx.h"
+#include "ebpf_monitor/exporter/data_types.h"
 #include "bpf/libbpf.h"
 
 namespace ebpf_monitor {
@@ -26,7 +32,10 @@ namespace ebpf_monitor {
 // Will do something better later.
 MapSource::MapSource() {
   log_sources_ = {std::make_shared<DataCtx>("h2_events", LogDesc{},
-                                            absl::Seconds(2), false, true)};
+                                            absl::Seconds(2), false, true),
+                 std::make_shared<DataCtx>("openssl_correlation_events",
+                                           LogDesc{}, absl::Seconds(2),
+                                           true, true)};
   metric_sources_ = {
       {std::make_shared<DataCtx>("h2_stream_count",
                                  MetricDesc{MetricType::kUint64,
@@ -63,8 +72,14 @@ MapSource::MapSource() {
                                             MetricType::kInternal,
                                             MetricKind::kNone,
                                             {MetricUnitType::kNone}},
-                                 absl::Seconds(60), true, true)}};
-
+                                 absl::Seconds(60), true, true)},
+      {std::make_shared<DataCtx>("data_sample_cntl",
+                                 MetricDesc{MetricType::kUint64,
+                                            MetricType::kUint8,
+                                            MetricKind::kNone,
+                                            {MetricUnitType::kNone}},
+                                 absl::Seconds(60), true, true)},
+      };
   file_name_ = "./maps_bpf.o";
   file_name_core_ = "./maps_core.o";
 }

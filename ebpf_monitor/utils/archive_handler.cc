@@ -17,6 +17,7 @@
 #include <fstream>
 
 #include "absl/status/status.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "archive.h"
 #include "archive_entry.h"

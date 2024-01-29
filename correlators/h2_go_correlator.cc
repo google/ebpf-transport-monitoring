@@ -20,11 +20,18 @@
 #include <netinet/ip6.h>
 #include <sys/socket.h>
 
+#include <vector>
+#include <string>
+#include <cstdint>
 #include <memory>
 
+#include "absl/time/time.h"
+#include "absl/time/clock.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
+#include "absl/strings/str_format.h"
 #include "ebpf_monitor/source/data_ctx.h"
 #include "events.h"
 #include "ebpf_monitor/correlator/correlator.h"
@@ -131,6 +138,7 @@ absl::Status H2GoCorrelator::HandleHTTP2(void * data) {
   if (this->correlator_.find(key) == this->correlator_.end()) {
     conn_info.UUID = key;
     conn_info.h2_conn_id = c_data->conn_id;
+    conn_info.start_time = absl::Now();
     this->correlator_.insert({key, conn_info});
   } else {
     this->correlator_[key].h2_conn_id = c_data->conn_id;
@@ -188,6 +196,7 @@ absl::Status H2GoCorrelator::HandleTCP(void * data) {
         conn_info.UUID = key;
         conn_info.tcp_conn_id = event->mdata.connection_id;
         conn_info.pid = event->mdata.pid;
+        conn_info.start_time = absl::Now();
         this->correlator_.insert({key, conn_info});
       } else {
         this->correlator_[key].tcp_conn_id = event->mdata.connection_id;
@@ -234,6 +243,20 @@ absl::Status H2GoCorrelator::HandleData(absl::string_view metric_name,
                                         void *key,
                                         void *value) {
   return absl::OkStatus();
+}
+
+// This function will delete entries in the cases where the correlation was not
+// successful.
+void H2GoCorrelator::Cleanup() {
+  absl::Time now = absl::Now();
+  for (auto it = correlator_.begin(); it != correlator_.end();) {
+    if (it->second.h2_conn_id != 0 && it->second.tcp_conn_id != 0 &&
+      now - it->second.start_time > absl::Seconds(120)) {
+      correlator_.erase(it++);
+    } else {
+      ++it;
+    }
+  }
 }
 
 }  // namespace ebpf_monitor

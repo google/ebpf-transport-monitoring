@@ -12,4 +12,17 @@ struct sock___old {
   u16 sk_gso_max_segs;
 };
 
+struct iov_iter___old {
+  u8 iter_type;
+  bool nofault;
+  bool data_source;
+  bool user_backed;
+  union {
+    size_t iov_offset;
+    int last_offset;
+  };
+  size_t count;
+  const struct iovec *iov;
+};
+
 #endif
