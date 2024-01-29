@@ -17,12 +17,17 @@
 #include <fcntl.h> /* Definition of AT_* constants */
 #include <linux/limits.h>
 #include <unistd.h>
-
+#include <dirent.h>
+#include <algorithm>
+#include <cctype> 
 #include <fstream>
 #include <ios>
 #include <iostream>
+#include <vector>
 #include <string>
 
+#include "absl/strings/str_cat.h"
+#include "absl/strings/string_view.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
@@ -80,6 +85,34 @@ absl::StatusOr<std::string> GetBinaryPath(pid_t pid) {
     return pwd;
   }
   return absl::StrCat(*pwd, "/", *exe);
+}
+
+absl::StatusOr<std::vector<pid_t>> GetProcesses(std::string proc_name) {
+  std::vector<pid_t> processes;
+  struct dirent* entry;
+  DIR* dp = opendir("/proc");
+
+  if (dp != nullptr) {
+    while ((entry = readdir(dp))) {
+      std::string dirname = entry->d_name;
+      if (std::all_of(dirname.begin(), dirname.end(), ::isdigit)) {
+        int pid = std::stoi(dirname);
+        auto path = GetBinaryPath (pid);
+        if (!path.ok()) {
+          continue;
+        }
+        int lastSlash = (*path).find_last_of('/');
+        if (lastSlash != std::string::npos &&
+            (*path).substr(lastSlash + 1) == proc_name) {
+          processes.push_back(pid);
+        }
+      }
+    }
+    closedir(dp);
+  } else {
+    return absl::InternalError("Failed to open /proc directory.");
+  }
+  return processes;
 }
 
 }  // namespace ebpf_monitor

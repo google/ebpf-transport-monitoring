@@ -26,6 +26,8 @@
 #include "absl/time/time.h"
 #include "ebpf_monitor/exporter/handlers.h"
 #include "ebpf_monitor/source/data_ctx.h"
+#include "ebpf_monitor/utils/event_manager.h"
+
 #include "event2/event.h"
 #include "bpf/bpf.h"
 #include "bpf/libbpf.h"
@@ -35,12 +37,13 @@ namespace ebpf_monitor {
 #define PERF_PAGES 2
 #define MAX_SIZE 1024
 
-DataManager::DataManager(struct event_base *base) : base_(base) {
+DataManager::DataManager() {
   struct event *event = nullptr;
   struct DataManagerCtx *data_ctx = new (struct DataManagerCtx);
   data_ctx->this_ = this;
   data_ctx->ctx = nullptr;
-  event = event_new(base_, -1, EV_PERSIST, HandleCleanup, (void *)data_ctx);
+  event = event_new(EventManager::GetInstance().event_base(),
+                    -1, EV_PERSIST, HandleCleanup, (void *)data_ctx);
   auto timeval = absl::ToTimeval(absl::Seconds(60));
   event_add(event, &timeval);
   events_.push_back(event);
@@ -71,7 +74,8 @@ absl::Status DataManager::RegisterLog(std::shared_ptr<DataCtx> ctx) {
   struct DataManagerCtx *data_ctx = new (struct DataManagerCtx);
   data_ctx->this_ = this;
   data_ctx->ctx = ctx.get();
-  event = event_new(base_, -1, EV_PERSIST, DataManager::HandleEvent,
+  event = event_new(EventManager::GetInstance().event_base(),
+                    -1, EV_PERSIST, DataManager::HandleEvent,
                     (void *)data_ctx);
   auto buffer = perf_buffer__new(
       ctx->get_bpf_map_fd(), PERF_PAGES, DataManager::HandlePerf,
@@ -93,7 +97,8 @@ absl::Status DataManager::RegisterMetric(std::shared_ptr<DataCtx> ctx) {
   struct DataManagerCtx *data_ctx = new (struct DataManagerCtx);
   data_ctx->this_ = this;
   data_ctx->ctx = ctx.get();
-  event = event_new(base_, -1, EV_PERSIST, HandleEvent, (void *)data_ctx);
+  event = event_new(EventManager::GetInstance().event_base(),
+                    -1, EV_PERSIST, HandleEvent, (void *)data_ctx);
   registered_sources_[ctx->get_name()] = true;
   auto timeval = absl::ToTimeval(ctx->get_poll());
   event_add(event, &timeval);

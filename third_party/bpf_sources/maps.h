@@ -70,4 +70,20 @@ struct {
   __uint(max_entries, 1);
 } h2_event_heap SEC(".maps");
 
+struct {
+  __uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
+  __uint(key_size, sizeof(__u32));
+  __uint(value_size, sizeof(__u32));
+} openssl_correlation_events SEC(".maps");
+
+/* This map keeps track of which connections we don't need to collect
+ correlation information from anymore.*/
+struct {
+  __uint(type, BPF_MAP_TYPE_LRU_HASH);
+  __uint(key_size, sizeof(__u64));
+  __uint(value_size, sizeof(uint8_t));
+  __uint(max_entries, MAX_H2_CONN_TRACED * 2);
+} data_sample_cntl SEC(".maps");
+
+
 #endif

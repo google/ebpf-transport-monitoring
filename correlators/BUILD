@@ -54,12 +54,17 @@ cc_library(
     deps = [
         "//:events",
         "//ebpf_monitor/correlator",
+        "//ebpf_monitor/exporter:data_types",
         "//ebpf_monitor/source:data_ctx",
+        "//ebpf_monitor/utils:event_manager",
         "//sources/common:correlator_types",
+        "@com_github_libevent_libevent//:libevent",
         "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/log",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/time",
     ],
 )

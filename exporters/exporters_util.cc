@@ -155,7 +155,7 @@ absl::StatusOr<std::string> PrintH2Data(uint32_t event_type,
 
 std::string MetricValue(const void *const data, MetricType type) {
   switch (type) {
-    case MetricType::kUnit8:
+    case MetricType::kUint8:
       return absl::StrFormat("%u", *(uint8_t *)data);
     case MetricType::kUint16:
       return absl::StrFormat("%u", *(uint16_t *)data);
@@ -192,7 +192,7 @@ static constexpr uint64_t kSecToNanosecFactor = 1000 * 1000 * 1000;
 all metrics are uint64_t hence for now we live with this monstrosity*/
 int64_t GetMetric(const void *const data, MetricType type) {
   switch (type) {
-    case MetricType::kUnit8:
+    case MetricType::kUint8:
       return *(uint8_t *)data;
     case MetricType::kUint16:
       return *(uint16_t *)data;

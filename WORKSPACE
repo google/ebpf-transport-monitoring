@@ -124,6 +124,7 @@ http_archive(
     sha256 = "39bd8f1a338e2b7cd4abc3ff11a0eddc6e690f69578a57478d8179b4148708c8",
 )
 
+
 git_repository(
     name = "libbpf",
     commit ="dc4e7076ad134559eb1051d353570f74cfd5606d",
@@ -131,8 +132,14 @@ git_repository(
     build_file = "//rules/third_party:BUILD.bpf.bzl",
 )
 
+git_repository(
+    name = "net_http",
+    commit = "55ac2986f5d3b64b21b642b49bf29ac6797d9457",
+    remote = "https://github.com/google/net_http.git",
+)
+
 http_archive(
-    name = "libevent",
+    name = "com_github_libevent_libevent",
     url = "https://github.com/libevent/libevent/releases/download/release-2.1.12-stable/libevent-2.1.12-stable.tar.gz",
     sha256 = "92e6de1be9ec176428fd2367677e61ceffc2ee1cb119035037a27d346b0403bb",
     strip_prefix = "libevent-2.1.12-stable",
@@ -159,11 +166,13 @@ http_archive(
     build_file = "//rules/third_party:BUILD.curl.bzl",
     strip_prefix = "curl-master",
     urls = ["https://github.com/curl/curl/archive/master.zip"],
+    sha256 = "7b7475703623a25b60d0a5bb26938f938fb5b64903a100380ec97bfa3ba79cb8",
 )
 
 http_archive(
     name = "com_github_libarchive",
     build_file = "//rules/third_party:BUILD.libarchive.bzl",
+    sha256 = "ba6d02f15ba04aba9c23fd5f236bb234eab9d5209e95d1c4df85c44d5f19b9b3",
     strip_prefix = "libarchive-3.6.2",
     urls = ["https://github.com/libarchive/libarchive/releases/download/v3.6.2/libarchive-3.6.2.tar.gz"],
 )

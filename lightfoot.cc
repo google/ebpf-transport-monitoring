@@ -14,17 +14,24 @@
 
 #include <unistd.h>
 
+#include <thread>
 #include <iostream>
 #include <ostream>
+#include <memory>
 #include <vector>
 
 #include "absl/flags/flag.h"
 #include "absl/flags/parse.h"
+#include "absl/base/log_severity.h"
+#include "absl/log/globals.h"
+
 #include "absl/status/status.h"
 #include "ebpf_monitor/ebpf_monitor.h"
+#include "ebpf_monitor/config_manager/proc_manager.h"
+#include "ebpf_monitor/config_manager/config_server.h"
 
 ABSL_FLAG(bool, dry_run, false, "Run without loading eBPF code");
-
+ABSL_FLAG(int, log_level, 3, "Log level (0: INFO, 1: WARNING, 2: ERROR)");
 
 int main(int argc, char **argv) {
   absl::Status status;
@@ -34,6 +41,9 @@ int main(int argc, char **argv) {
     std::cerr << "Please provide pids in command line arguments" << std::endl;
     return -1;
   }
+
+  absl::SetStderrThreshold(
+      absl::LogSeverityAtLeast(absl::GetFlag(FLAGS_log_level)));
   std::vector<pid_t> pids;
   for (auto pid_str : pids_str) {
     pid_t pid;
@@ -49,16 +59,16 @@ int main(int argc, char **argv) {
     std::cerr <<  status.message() << std::endl;
     return -1;
   }
-  for (pid_t pid : pids) {
-    status = ebpf_monitor::EbpfMonitor::GetInstance().Monitor(pid);
-    if (!status.ok()) {
-    std::cerr <<  status.message() << std::endl;
-    return -1;
-    }
-  }
-  if (dry_run) {
-    return 0;
-  }
+  std::shared_ptr<ebpf_monitor::ProcManager> proc_manager =
+      std::make_shared<ebpf_monitor::ProcManager>();
+  proc_manager->Init();
+  proc_manager->AddPids(pids);
+
+  ebpf_monitor::ConfigServer server(proc_manager);
+  std::thread config_server_thread
+      (&ebpf_monitor::ConfigServer::Start, &server);
+
+  config_server_thread.detach();
   status = ebpf_monitor::EbpfMonitor::GetInstance().Start();
   if (!status.ok()) {
     std::cerr <<  status.message() << std::endl;

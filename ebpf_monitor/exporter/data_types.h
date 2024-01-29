@@ -23,7 +23,7 @@
 namespace ebpf_monitor {
 
 enum class MetricType {
-  kUnit8,
+  kUint8,
   kUint16,
   kUint32,
   kUint64,
@@ -126,7 +126,7 @@ static __attribute__((unused)) std::string GetUnitString(MetricUnit_t unit) {
 
 static __attribute__((unused)) size_t getSize(MetricType m) {
   switch (m) {
-    case MetricType::kUnit8:
+    case MetricType::kUint8:
       return sizeof(uint8_t);
     case MetricType::kUint16:
       return sizeof(uint16_t);

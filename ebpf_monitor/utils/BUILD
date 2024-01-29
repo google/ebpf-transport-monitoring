@@ -18,6 +18,15 @@ package(
 )
 
 cc_library(
+    name = "event_manager",
+    hdrs = ["event_manager.h"],
+    deps = [
+        "@com_github_libevent_libevent//:libevent",
+        "@com_google_absl//absl/status",
+    ],
+)
+
+cc_library(
     name = "archive_handler",
     srcs = ["archive_handler.cc"],
     hdrs = ["archive_handler.h"],

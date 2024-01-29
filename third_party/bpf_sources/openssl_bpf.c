@@ -26,6 +26,9 @@ typedef struct func_args
 #define READ      0
 #define WRITE     1
 
+// This is a arbitrary number selected for the number of
+// frames that could be there in one Openssl write or READ
+#define FRAMES_PER_WRITE    200
 /* h2_grpc_pid_filter is a map of pids that the probe is supposed to trace */
 struct {
   __uint(type, BPF_MAP_TYPE_HASH);
@@ -60,15 +63,10 @@ struct {
 struct {
   __uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
   __uint(key_size, sizeof(__u32));
-  __uint(value_size, 32); // Char array of  size 20
+  __uint(value_size, 64);
   __uint(max_entries, 1);
 } buffer_heap SEC(".maps");
 
-struct {
-  __uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
-  __uint(key_size, sizeof(__u32));
-  __uint(value_size, sizeof(__u32));
-} openssl_correlation_events SEC(".maps");
 
 struct {
   __uint(type, BPF_MAP_TYPE_LRU_PERCPU_HASH);
@@ -76,6 +74,16 @@ struct {
   __uint(value_size, sizeof(int));
   __uint(max_entries, 2 * MAX_H2_CONN_TRACED);  
 } data_offset SEC(".maps");
+
+/* connection_bio_map is a map which keeps track of the bio ptr and the 
+corresponding ssl_ptr.*/
+struct {
+  __uint(type, BPF_MAP_TYPE_LRU_HASH);
+  __uint(key_size, sizeof(__u64));
+  __uint(value_size, sizeof(__u64));
+  __uint(max_entries, MAX_H2_CONN_TRACED);
+} connection_bio_map SEC(".maps");
+
 
 static __always_inline uint64_t get_curr_tgid_pid() {
   uint64_t ppid = bpf_get_current_pid_tgid();
@@ -112,8 +120,7 @@ static __inline uint8_t check_prism (const char * buffer, uint32_t len) {
   if (bpf_probe_read_user(buf, 10, buffer) < 0){
     return 0;
   }
-  
-  //char fmt[] = "Trace=%d";
+
   if ((buf[0] == 0x50 ) && (buf[1] == 0x52 ) && (buf[2] == 0x49 ) &&
       (buf[3] == 0x20 ) && (buf[4] == 0x2a ) && (buf[5] == 0x20 ) &&
       (buf[6] == 0x48 ) && (buf[7] == 0x54 ) && (buf[8] == 0x54 ) &&
@@ -123,23 +130,19 @@ static __inline uint8_t check_prism (const char * buffer, uint32_t len) {
       (buf[17] == 0x0a ) &&(buf[18] == 0x53 ) &&(buf[19] == 0x4d ) &&
       (buf[20] == 0x0d ) &&(buf[21] == 0x0a ) &&(buf[22] == 0x0d ) &&
       (buf[23] == 0x0a)*/) {
-    // bpf_trace_printk(fmt,sizeof(fmt),1);
     return 1;
   }
-  // bpf_trace_printk(fmt,sizeof(fmt),0);
   return 0;
 }
 
 static __always_inline uint32_t process_data(void * ctx, uint32_t pid,
                                              uint8_t rw, uint64_t ssl_ptr,
                                              char * buf, uint32_t data_len ) {
-  //char fmt [] = "%s,%d,%d";
   int curr_loc = 0;
 
   uint8_t* trace_conn = bpf_map_lookup_elem(&openssl_connections, &ssl_ptr);
   uint8_t trace;
   if (trace_conn == NULL) {
-    // bpf_trace_printk(fmt,sizeof(fmt),__FUNCTION__,__LINE__,ssl_ptr);
     trace = check_prism(buf, data_len);
     curr_loc += 24;
     bpf_map_update_elem(&openssl_connections, &ssl_ptr, &trace, BPF_NOEXIST);
@@ -150,6 +153,14 @@ static __always_inline uint32_t process_data(void * ctx, uint32_t pid,
       return 0;
   }
   if (trace_conn == NULL){
+    uint64_t timestamp = bpf_ktime_get_ns();
+    metric_format_t format = {.data = 0, .timestamp = timestamp};
+    bpf_map_update_elem(&h2_connection, &ssl_ptr,
+                        &timestamp, BPF_ANY);
+    bpf_map_update_elem(&h2_stream_count, &ssl_ptr,
+                        &format, BPF_ANY);
+    bpf_map_update_elem(&h2_reset_stream_count, &ssl_ptr,
+                        &format, BPF_ANY);
     int kZero = 0;
     openssl_correlation * info = (openssl_correlation * )
         bpf_map_lookup_elem(&buffer_heap, &kZero);
@@ -158,6 +169,7 @@ static __always_inline uint32_t process_data(void * ctx, uint32_t pid,
     }
     info->mdata.type = kSslNewConnection;
     info->mdata.conn_id = ssl_ptr;
+
     bpf_perf_event_output(ctx, &openssl_correlation_events, BPF_F_CURRENT_CPU,
                           info, sizeof(openssl_mdata_t)); 
   }
@@ -167,24 +179,21 @@ static __always_inline uint32_t process_data(void * ctx, uint32_t pid,
   }
   event->mdata.connection_id = ssl_ptr;
   event->mdata.sent_recv = rw;
-  
+
   ssl_ptr += rw;
   int * value = bpf_map_lookup_elem(&data_offset, &ssl_ptr);
   if (value != NULL){
-//    bpf_trace_printk(fmt,sizeof(fmt),"value",__LINE__, *value);
     curr_loc += *value;
-  }             
+  }
   ssl_ptr -= rw;
-         
-  for (int i = 0; i < 20; i ++){
+
+  for (int i = 0; i < FRAMES_PER_WRITE; i ++){
     if (curr_loc >= data_len) {
       // Also have to consider the case where half frame header is received
       // There isn't data enough for another frame
       // Store offset depending on rw
       ssl_ptr += rw;
-      // bpf_trace_printk(fmt,sizeof(fmt),"curr_loc",curr_loc, data_len);
       curr_loc -= data_len;
-      
       if (value == NULL){
         bpf_map_update_elem(&data_offset, &ssl_ptr, &curr_loc, BPF_NOEXIST);
       } else {
@@ -194,7 +203,6 @@ static __always_inline uint32_t process_data(void * ctx, uint32_t pid,
     }
     int size = parse_h2_frame(ctx, &buf[curr_loc],
                               data_len - curr_loc, event, rw);
-    // bpf_trace_printk(fmt,sizeof(fmt), __FUNCTION__, data_len, size);
     if (size < 0){
       return 0;
     }
@@ -298,6 +306,74 @@ int probe_ret_SSL_read(struct pt_regs* ctx) {
       process_data(ctx, pid>>32, READ, args->ptr, args->buf, args->len);
     }
   }
+  return 0;
+}
+
+/*
+Currently in our case we place our probe in sendmsg of tcp so we need only
+w bio*/
+SEC("uprobe/openssl_set_bio")
+int probe_entry_SSL_set_bio(struct pt_regs* ctx) {
+  uint64_t pid = get_curr_tgid_pid();
+  if (pid == 0){
+    return 0;
+  }
+
+  uint64_t ssl_ptr = (uint64_t) PT_REGS_PARM1(ctx);
+  uint64_t wbio = (uint64_t) PT_REGS_PARM3(ctx);
+
+  bpf_map_update_elem(&connection_bio_map, &wbio, &ssl_ptr, BPF_ANY);
+
+  return 0;
+}
+
+SEC("uprobe/openssl_bio_write")
+int probe_entry_bio_write (struct pt_regs* ctx) {
+  uint64_t pid = get_curr_tgid_pid();
+  if (pid == 0){
+    return 0;
+  }
+
+  uint64_t bio = (uint64_t) PT_REGS_PARM1(ctx);
+
+  uint64_t* ssl_ptr_ptr = bpf_map_lookup_elem(&connection_bio_map, &bio);
+  if (ssl_ptr_ptr == NULL) {
+    return 0;
+  }
+
+  uint8_t* trace_conn = bpf_map_lookup_elem(&openssl_connections, ssl_ptr_ptr);
+  if (trace_conn != NULL && *trace_conn == 0) {
+    return 0;
+  }
+
+  uint8_t *cntl = bpf_map_lookup_elem(&data_sample_cntl, ssl_ptr_ptr);
+  if (cntl == NULL)  {
+    return 0;
+  }
+
+  const char *ptr = (const char*) PT_REGS_PARM2(ctx);
+  uint32_t len = (uint32_t)PT_REGS_PARM3(ctx);
+
+  if (len < TLS_TOTAL_DATA_SIZE) {
+    return 0;
+  }
+  const int kZero = 0;
+  openssl_correlation * info = (openssl_correlation * )
+      bpf_map_lookup_elem(&buffer_heap, &kZero);
+  if (info == NULL){
+    return 0;
+  }
+  info->mdata.type = kSslCorrelationInfo;
+  info->mdata.conn_id = (uint64_t)*ssl_ptr_ptr;
+
+  data_sample_t* sample = (data_sample_t*) info->info;
+  sample->level = OPENSSL_LEVEL;
+
+  if (bpf_probe_read(&sample->data, TLS_DATA_HASH_SIZE, &ptr[TLS_DATA_OFFSET])){
+    return 0;
+  }
+  bpf_perf_event_output(ctx, &openssl_correlation_events, BPF_F_CURRENT_CPU,
+                        info, sizeof(openssl_correlation));
   return 0;
 }
 

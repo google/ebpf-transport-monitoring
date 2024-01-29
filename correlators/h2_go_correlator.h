@@ -48,6 +48,7 @@ class H2GoCorrelator : public CorrelatorInterface {
     uint64_t pid;
     uint64_t h2_conn_id;
     uint64_t tcp_conn_id;
+    absl::Time start_time;
     std::string UUID;
   };
   absl::Status HandleData(absl::string_view log_name,  void*  data,
@@ -56,7 +57,7 @@ class H2GoCorrelator : public CorrelatorInterface {
                           void* value) override;
   void HandleNewConnection (const struct ConnInfo *conn_info);
   bool CheckUUID(std::string uuid) override;
-  void Cleanup() override{};
+  void Cleanup() override;
 
   absl::Status HandleTCP(void*  data);
   absl::Status HandleHTTP2(void*  data);

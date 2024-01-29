@@ -71,7 +71,7 @@ TcpSource::TcpSource() {
           absl::Seconds(60), false, false),
       std::make_shared<DataCtx>(
           "tcp_pid_filter",
-          MetricDesc{MetricType::kUint64, MetricType::kUnit8, MetricKind::kNone,
+          MetricDesc{MetricType::kUint64, MetricType::kUint8, MetricKind::kNone,
                      bytes},
           absl::Seconds(60), true, false),
       std::make_shared<DataCtx>(

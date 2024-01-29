@@ -19,11 +19,13 @@
 
 #include <string>
 
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 
 namespace ebpf_monitor {
 
 absl::StatusOr<std::string> GetBinaryPath(pid_t pid);
+absl::StatusOr<std::vector<pid_t>> GetProcesses(std::string proc_name);
 
 }  // namespace ebpf_monitor
 

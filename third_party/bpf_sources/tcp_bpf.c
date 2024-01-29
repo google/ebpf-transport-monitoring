@@ -23,6 +23,11 @@
 #include "maps.h"
 #include "events.h"
 
+// The number of blocks in msghdr can be arbitrarily long
+// This limit was defined to support older kernels with a small instruction
+// count, but we are keeping it the same for now.
+#define LOOP_LIMIT  32
+
 #ifdef CORE
 extern u32 LINUX_KERNEL_VERSION __kconfig;
 #endif
@@ -304,6 +309,74 @@ static __always_inline int handle_tcp(void * ctx, uint32_t pid,
   READ_TCP_METRIC_TO_MAP(&tcp_snd_bytes, &tcpi->bytes_acked);
   return 0;
 }
+
+
+static inline const struct iovec *iter_iov(const struct iov_iter *iter)
+{
+
+	if (iter->iter_type == ITER_UBUF)
+		return (struct iovec *) &(iter->__ubuf_iovec);
+	return iter->__iov;
+}
+
+static __always_inline int get_tls_hash(void * ctx, const struct sock * sk,
+                                        struct msghdr * msghdr) {
+  struct iov_iter iter;
+  KERN_READ(&iter,sizeof(struct iov_iter),&(msghdr->msg_iter));
+
+  const struct iovec* iov;
+  if (bpf_core_field_exists(struct iov_iter___old, iov)) {
+    KERN_READ(&iov,sizeof(struct iovec*), 
+              (((const struct iov_iter___old*) &(iter))->iov));
+  } else {
+    iov = iter_iov(&iter);
+  }
+
+  size_t segs;
+  KERN_READ(&segs, sizeof(segs), &iter.nr_segs);
+
+  struct iovec iov_cpy;
+  uint8_t byte = 0 ;
+  int i;
+
+  // Go through the buffers to find the start of a tls data frame.
+  for (i = 0; i < LOOP_LIMIT && i < segs; ++i) {
+    KERN_READ(&iov_cpy, sizeof(struct iovec), &iov[i]);
+    if (iov_cpy.iov_len == 0)
+      continue;
+    bpf_probe_read_user(&byte, sizeof(byte), iov_cpy.iov_base);
+    if (byte == 23){
+      break;
+    }
+  }
+
+  // If a TLS data frame is found try to read a data hash.
+  if(i != LOOP_LIMIT){
+    // Don't read anything if there are less than 8 bytes in the data.
+    if (iov_cpy.iov_len < TLS_TOTAL_DATA_SIZE) {
+      return 0;
+    }
+    const int kZero = 0;
+    openssl_correlation * info = (openssl_correlation * )
+          bpf_map_lookup_elem(&event_heap, &kZero);
+    if (info == NULL){
+      return 0;
+    }
+    info->mdata.type = kSslCorrelationInfo;
+    info->mdata.conn_id = (uint64_t) sk;
+    data_sample_t* sample = (data_sample_t*) info->info;
+    sample->level = TCP_LEVEL;
+    char *data_base = iov_cpy.iov_base;
+    if (bpf_probe_read_user(&sample->data, TLS_DATA_HASH_SIZE,
+                  &data_base[TLS_DATA_OFFSET])){
+      return 0;
+    }
+    bpf_perf_event_output(ctx, &openssl_correlation_events, BPF_F_CURRENT_CPU,
+                          info, sizeof(openssl_correlation));
+  }
+  return 0;
+}
+
 /*
 This function is called on a per packet basis and hence should be
 sampled.
@@ -328,7 +401,14 @@ int probe_tcp_sendmsg(struct pt_regs* ctx) {
     return 0;
   }
   const struct sock * sk = (struct sock *) PT_REGS_PARM1(ctx);
-  return handle_tcp(ctx, pid, sk);
+  handle_tcp(ctx, pid, sk);
+
+  uint8_t *cntl = bpf_map_lookup_elem(&data_sample_cntl, &sk);
+  if (cntl != NULL)  {
+    struct msghdr * msghdr = (struct msghdr *) PT_REGS_PARM2(ctx);
+    get_tls_hash(ctx, sk, msghdr);
+  }
+  return 0;
 }
 
 /*
