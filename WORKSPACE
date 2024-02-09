@@ -28,31 +28,18 @@ http_archive(
 load("@rules_pkg//:deps.bzl", "rules_pkg_dependencies")
 rules_pkg_dependencies()
 
-http_archive(
-    name = "rules_proto",
-    sha256 = "66bfdf8782796239d3875d37e7de19b1d94301e8972b3cbd2446b332429b4df1",
-    strip_prefix = "rules_proto-4.0.0",
-    urls = [
-        "https://mirror.bazel.build/github.com/bazelbuild/rules_proto/archive/refs/tags/4.0.0.tar.gz",
-        "https://github.com/bazelbuild/rules_proto/archive/refs/tags/4.0.0.tar.gz",
-    ],
-)
-load("@rules_proto//proto:repositories.bzl", "rules_proto_dependencies", "rules_proto_toolchains")
-rules_proto_dependencies()
-rules_proto_toolchains()
 
 http_archive(
-  name = "com_google_absl",
-  urls = ["https://github.com/abseil/abseil-cpp/archive/refs/tags/20230125.1.tar.gz"],
-  strip_prefix = "abseil-cpp-20230125.1",
-  sha256 = "81311c17599b3712069ded20cca09a62ab0bf2a89dfa16993786c8782b7ed145"
+  name = "com_googlesource_code_re2",
+  urls = ["https://github.com/google/re2/releases/download/2023-11-01/re2-2023-11-01.tar.gz"],
+  strip_prefix = "re2-2023-11-01",
 )
 
 http_archive(
-  name = "com_google_re2",
-  urls = ["https://github.com/google/re2/archive/refs/tags/2022-04-01.tar.gz"],
-  strip_prefix = "re2-2022-04-01",
-  sha256 = "1ae8ccfdb1066a731bba6ee0881baad5efd2cd661acd9569b689f2586e1a50e9"
+    name = "zlib",
+    url = "https://zlib.net/zlib-1.3.1.tar.gz",
+    strip_prefix = "zlib-1.3.1",
+    build_file = "//rules/third_party:BUILD.zlib.bzl",
 )
 
 http_archive(
@@ -63,9 +50,8 @@ http_archive(
 )
 http_archive(
     name = "google_cloud_cpp",
-    strip_prefix = "google-cloud-cpp-2.8.0",
-    url = "https://github.com/googleapis/google-cloud-cpp/archive/v2.8.0.tar.gz",
-    sha256 = "21fb441b5a670a18bb16b6826be8e0530888d0b94320847c538d46f5a54dddbc"
+    strip_prefix = "google-cloud-cpp-2.16.0",
+    url = "https://github.com/googleapis/google-cloud-cpp/archive/v2.16.0.tar.gz",
 )
 
 # Load indirect dependencies due to
@@ -118,16 +104,15 @@ rules_foreign_cc_dependencies()
 
 http_archive(
     name = "elfutils",
-    url = "https://sourceware.org/elfutils/ftp/0.189/elfutils-0.189.tar.bz2",
-    strip_prefix = "elfutils-0.189",
+    url = "https://sourceware.org/elfutils/ftp/0.190/elfutils-0.190.tar.bz2",
+    strip_prefix = "elfutils-0.190",
     build_file = "//rules/third_party:BUILD.elf.bzl",
-    sha256 = "39bd8f1a338e2b7cd4abc3ff11a0eddc6e690f69578a57478d8179b4148708c8",
 )
 
 
 git_repository(
     name = "libbpf",
-    commit ="dc4e7076ad134559eb1051d353570f74cfd5606d",
+    commit ="20c0a9e3d7e7d4aeb283eae982543c9cacc29477",
     remote = "https://github.com/libbpf/libbpf.git",
     build_file = "//rules/third_party:BUILD.bpf.bzl",
 )
@@ -147,13 +132,6 @@ http_archive(
 )
 
 http_archive(
-    name = "zlib",
-    url = "https://zlib.net/zlib-1.2.13.tar.gz",
-    strip_prefix = "zlib-1.2.13",
-    build_file = "//rules/third_party:BUILD.zlib.bzl",
-)
-
-http_archive(
     name = "com_github_tclap_tclap",
     url = "https://sourceforge.net/projects/tclap/files/tclap-1.4.0-rc1.tar.bz2",
     sha256 = "33e18c7828f76a9e5f2a00afe575156520e383693059ca9bc34ff562927e20c6",
@@ -164,9 +142,9 @@ http_archive(
 http_archive(
     name = "com_github_curl",
     build_file = "//rules/third_party:BUILD.curl.bzl",
-    strip_prefix = "curl-master",
-    urls = ["https://github.com/curl/curl/archive/master.zip"],
-    sha256 = "7b7475703623a25b60d0a5bb26938f938fb5b64903a100380ec97bfa3ba79cb8",
+    strip_prefix = "curl-8.2.1",
+    urls = ["https://github.com/curl/curl/releases/download/curl-8_2_1/curl-8.2.1.zip"],
+    sha256 = "f28ce6b38cf798e3c52017162e5355705bb6717288d5faf3f57a950dac72d12d"
 )
 
 http_archive(

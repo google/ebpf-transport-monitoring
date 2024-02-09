@@ -65,11 +65,11 @@ cc_library(
     srcs = ["os_helper.cc"],
     hdrs = ["os_helper.h"],
     deps = [
+        "@@com_googlesource_code_re2//:re2",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
-        "@com_google_re2//:re2",
     ],
 )
 
@@ -116,11 +116,11 @@ cc_library(
         ":proc_reader",
         ":utils",
         "//third_party/bpf_sources:sources_obj",
+        "@@com_googlesource_code_re2//:re2",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
-        "@com_google_re2//:re2",
         "@libbpf",
     ],
 )

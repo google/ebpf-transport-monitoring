@@ -21,5 +21,6 @@ filegroup(name = "zlib_all", srcs = glob(["**"]), visibility = ["//visibility:pu
 cmake(
     name = "zlib",
     lib_source = ":zlib_all",
-    out_static_libs = ["libzlib.a"],
+    out_static_libs = ["libz.a"],
+    visibility = ["//visibility:public"],
 )
