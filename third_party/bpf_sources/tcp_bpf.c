@@ -148,6 +148,13 @@ struct {
   __uint(max_entries, 1);
 } event_heap SEC(".maps");
 
+struct {
+  __uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
+  __uint(key_size, sizeof(__u32));
+  __uint(value_size, 64);
+  __uint(max_entries, 1);
+} buffer_heap SEC(".maps");
+
 static __always_inline uint32_t get_curr_pid() {
   uint32_t ppid = (bpf_get_current_pid_tgid() >> 32);
   uint8_t* trace_pid = bpf_map_lookup_elem(&tcp_pid_filter, &ppid);
@@ -320,13 +327,14 @@ static inline const struct iovec *iter_iov(const struct iov_iter *iter)
 }
 
 static __always_inline int get_tls_hash(void * ctx, const struct sock * sk,
-                                        struct msghdr * msghdr) {
+                                        struct msghdr * msghdr){
   struct iov_iter iter;
+  const int kZero = 0;
   KERN_READ(&iter,sizeof(struct iov_iter),&(msghdr->msg_iter));
 
   const struct iovec* iov;
   if (bpf_core_field_exists(struct iov_iter___old, iov)) {
-    KERN_READ(&iov,sizeof(struct iovec*), 
+    KERN_READ(&iov,sizeof(struct iovec*),
               (((const struct iov_iter___old*) &(iter))->iov));
   } else {
     iov = iter_iov(&iter);
@@ -335,16 +343,19 @@ static __always_inline int get_tls_hash(void * ctx, const struct sock * sk,
   size_t segs;
   KERN_READ(&segs, sizeof(segs), &iter.nr_segs);
 
-  struct iovec iov_cpy;
+  struct iovec * iov_cpy = bpf_map_lookup_elem(&buffer_heap, &kZero);
+  if (iov_cpy == NULL){
+    return 0;
+  }
   uint8_t byte = 0 ;
   int i;
 
   // Go through the buffers to find the start of a tls data frame.
   for (i = 0; i < LOOP_LIMIT && i < segs; ++i) {
-    KERN_READ(&iov_cpy, sizeof(struct iovec), &iov[i]);
-    if (iov_cpy.iov_len == 0)
+    KERN_READ(iov_cpy, sizeof(struct iovec), &iov[i]);
+    if (iov_cpy->iov_len == 0)
       continue;
-    bpf_probe_read_user(&byte, sizeof(byte), iov_cpy.iov_base);
+    bpf_probe_read_user(&byte, sizeof(byte), iov_cpy->iov_base);
     if (byte == 23){
       break;
     }
@@ -353,10 +364,9 @@ static __always_inline int get_tls_hash(void * ctx, const struct sock * sk,
   // If a TLS data frame is found try to read a data hash.
   if(i != LOOP_LIMIT){
     // Don't read anything if there are less than 8 bytes in the data.
-    if (iov_cpy.iov_len < TLS_TOTAL_DATA_SIZE) {
+    if (iov_cpy->iov_len < TLS_TOTAL_DATA_SIZE) {
       return 0;
     }
-    const int kZero = 0;
     openssl_correlation * info = (openssl_correlation * )
           bpf_map_lookup_elem(&event_heap, &kZero);
     if (info == NULL){
@@ -366,7 +376,7 @@ static __always_inline int get_tls_hash(void * ctx, const struct sock * sk,
     info->mdata.conn_id = (uint64_t) sk;
     data_sample_t* sample = (data_sample_t*) info->info;
     sample->level = TCP_LEVEL;
-    char *data_base = iov_cpy.iov_base;
+    char *data_base = iov_cpy->iov_base;
     if (bpf_probe_read_user(&sample->data, TLS_DATA_HASH_SIZE,
                   &data_base[TLS_DATA_OFFSET])){
       return 0;
