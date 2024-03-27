@@ -22,7 +22,6 @@ cc_library(
     srcs = ["config_server.cc"],
     hdrs = ["config_server.h"],
     deps = [
-        ":proc_manager",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/status",
@@ -37,6 +36,7 @@ cc_library(
     srcs = ["proc_manager.cc"],
     hdrs = ["proc_manager.h"],
     deps = [
+        ":config_server",
         "//ebpf_monitor",
         "//ebpf_monitor/utils:event_manager",
         "//ebpf_monitor/utils:proc_reader",
@@ -46,5 +46,27 @@ cc_library(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/time",
+        "@net_http//net_http/public:shared_files",
+        "@net_http//net_http/server/public:http_server",
+        "@net_http//net_http/server/public:http_server_api",
+    ],
+)
+
+cc_library(
+    name = "k8s_manager",
+    srcs = ["k8s_manager.cc"],
+    hdrs = ["k8s_manager.h"],
+    deps = [
+        ":config_server",
+        ":proc_manager",
+        "//ebpf_monitor",
+        "//ebpf_monitor/utils:event_manager",
+        "@com_github_libevent_libevent//:libevent",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
+        "@net_http//net_http/public:shared_files",
+        "@net_http//net_http/server/public:http_server",
+        "@net_http//net_http/server/public:http_server_api",
     ],
 )

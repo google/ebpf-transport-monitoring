@@ -136,3 +136,28 @@ cc_library(
         "@com_google_absl//absl/strings:str_format",
     ],
 )
+
+cc_test(
+    name = "archive_handler_test",
+    srcs = ["archive_handler_test.cc"],
+    deps = [
+        ":archive_handler",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "reader_handler_test",
+    srcs = ["reader_test.cc"],
+    data = [
+        "//test_binaries:test_binary.o",
+    ],
+    deps = [
+        ":dwarf_reader",
+        ":elf_reader",
+        ":utils",
+        "//devtools/build/runtime:get_runfiles_dir",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_googletest//:gtest_main",
+    ],
+)

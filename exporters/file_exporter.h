@@ -15,27 +15,30 @@
 #ifndef _EBPF_MONITOR__FILE_EXPORTER_H_
 #define _EBPF_MONITOR__FILE_EXPORTER_H_
 
+#include <cstdint>
 #include <memory>
 #include <string>
 
-#include "exporters/exporters_util.h"
+#include "spdlog/logger.h"
+#include "spdlog/spdlog.h"
+#include "absl/container/flat_hash_map.h"
+#include "absl/status/status.h"
+#include "absl/strings/string_view.h"
+#include "ebpf_monitor/exporter/data_types.h"
 #include "ebpf_monitor/exporter/log_exporter.h"
 #include "ebpf_monitor/exporter/metric_exporter.h"
-#include "spdlog/spdlog.h"
+#include "exporters/exporters_util.h"
 
 namespace ebpf_monitor {
 
 class FileLogger : public LogExporterInterface {
  public:
   FileLogger();
-  FileLogger(uint8_t max_files, uint32_t file_size, std::string dir_name);
   ~FileLogger() { spdlog::shutdown(); }
   absl::Status Init() override;
-
   absl::Status RegisterLog(std::string name, LogDesc& log_desc) override;
   absl::Status HandleData(absl::string_view log_name, void* data,
                           uint32_t size) override;
-
  private:
   absl::flat_hash_map<std::string, bool> logs_;
   uint8_t max_files_;
@@ -47,8 +50,6 @@ class FileLogger : public LogExporterInterface {
 class FileMetricExporter : public MetricExporterInterface {
  public:
   FileMetricExporter();
-  FileMetricExporter(uint8_t max_files, uint32_t file_size,
-                     std::string dir_name);
   ~FileMetricExporter() { spdlog::shutdown(); }
   absl::Status Init() override;
   absl::Status RegisterMetric(std::string name,
@@ -56,7 +57,6 @@ class FileMetricExporter : public MetricExporterInterface {
   absl::Status HandleData(absl::string_view metric_name, void* key,
                           void* value) override;
   void Cleanup();
-
  private:
   absl::flat_hash_map<std::string, MetricDesc> metrics_;
   MetricTimeChecker last_read_;

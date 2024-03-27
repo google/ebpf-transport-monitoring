@@ -21,10 +21,15 @@
 #include <cstdint>
 #include <utility>
 #include <vector>
-
+#include <cstring>
+#include "absl/log/log.h"
+#include "absl/time/time.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_format.h"
+#include "ebpf_monitor/source/source.h"
+#include "ebpf_monitor/source/data_ctx.h"
 #include "ebpf_monitor/source/probes.h"
 #include "ebpf_monitor/utils/elf_reader.h"
 #include "ebpf_monitor/utils/dwarf_reader.h"
@@ -68,7 +73,9 @@ absl::Status GetStructOffsets(std::string& path, h2_cfg_t* bpf_cfg) {
   structs["transport.http2Client"] = {
       {"framer"}, {"localAddr"}, {"remoteAddr"}};
   structs["transport.http2Server"] = {
-      {"framer"}, {"localAddr"}, {"remoteAddr"}};
+      {"framer"}, {"localAddr"}, {"remoteAddr"}, {"peer"}};
+  structs["peer.Peer"] = {
+      {"Addr"}, {"LocalAddr"}};
   structs["transport.framer"] = {
       {"writer"},
   };
@@ -122,14 +129,6 @@ absl::Status GetStructOffsets(std::string& path, h2_cfg_t* bpf_cfg) {
                                      "remoteAddr",
                                       &bpf_cfg->offset.client_raddr,
                                       sizeof(struct go_interface)));
-    EBPF_TM_RETURN_IF_ERROR(GetValue(reader, "transport.http2Server",
-                                     "localAddr",
-                                    &bpf_cfg->offset.server_laddr,
-                                    sizeof(struct go_interface)));
-    EBPF_TM_RETURN_IF_ERROR(GetValue(reader, "transport.http2Server",
-                                     "remoteAddr",
-                                    &bpf_cfg->offset.server_raddr,
-                                    sizeof(struct go_interface)));
     EBPF_TM_RETURN_IF_ERROR(GetValue(reader, "transport.http2Server", "framer",
                           &bpf_cfg->offset.server_framer, sizeof(uint64_t)));
     EBPF_TM_RETURN_IF_ERROR(GetValue(reader, "transport.framer", "writer",
@@ -149,6 +148,34 @@ absl::Status GetStructOffsets(std::string& path, h2_cfg_t* bpf_cfg) {
                           sizeof(struct go_slice)));
     EBPF_TM_RETURN_IF_ERROR(GetValue(reader, "net.TCPAddr", "Port",
                           &bpf_cfg->offset.tcp_port, sizeof(uint64_t)));
+
+    // in latest versions localAddr has been moved into a struct called peer.
+    // Make sure you have at least one of the values.
+    auto status = GetValue(reader, "transport.http2Server",
+                                     "localAddr",
+                                    &bpf_cfg->offset.server_laddr,
+                                    sizeof(struct go_interface));
+    if (status.ok()) {
+      LOG(INFO) << "Loading server local address";
+      EBPF_TM_RETURN_IF_ERROR(GetValue(reader, "transport.http2Server",
+                                     "remoteAddr",
+                                    &bpf_cfg->offset.server_raddr,
+                                    sizeof(struct go_interface)));
+    } else {
+      LOG(INFO) << "Loading peer address";
+      member_var_t peer_addr;
+      EBPF_TM_RETURN_IF_ERROR(GetValue(reader, "peer.Peer", "Addr",
+                                      &bpf_cfg->offset.server_raddr,
+                                       sizeof(struct go_interface)));
+      EBPF_TM_RETURN_IF_ERROR(GetValue(reader, "peer.Peer", "LocalAddr",
+                                      &bpf_cfg->offset.server_laddr,
+                                       sizeof(struct go_interface)));
+      EBPF_TM_RETURN_IF_ERROR(GetValue(reader, "transport.http2Server",
+                                     "peer", &peer_addr,
+                                      sizeof(uint64_t)));
+      bpf_cfg->offset.server_raddr.offset += peer_addr.offset;
+      bpf_cfg->offset.server_laddr.offset += peer_addr.offset;
+    }
   }
   return absl::OkStatus();
 }
@@ -258,6 +285,7 @@ H2GoGrpcSource::H2GoGrpcSource()
           "./h2_bpf.o", "./h2_bpf_core.o", "h2_grpc_pid_filter") {}
 
 static void InitCfg(h2_cfg_t* bpf_cfg) {
+  memset(bpf_cfg, 0, sizeof(h2_cfg_t));
   bpf_cfg->variables = {
       .connection = {.type = kLocationTypeRegisters, .offset = 0},
       .frame = {.type = kLocationTypeRegisters, .offset = 1},
@@ -333,13 +361,22 @@ absl::Status H2GoGrpcSource::RegisterProbes(ElfReader* elf_reader,
   return CreateProbes(elf_reader, path, close_functions, "probe_close");
 }
 
+absl::Status H2GoGrpcSource::PrepareBinary(ElfReader* elf_reader,
+                                           std::string& path, uint64_t pid,
+                                           h2_cfg_t* bpf_cfg){
+  EBPF_TM_RETURN_IF_ERROR(GetStructOffsets(path, bpf_cfg));
+  EBPF_TM_RETURN_IF_ERROR(GetTypes(elf_reader, bpf_cfg));
+  EBPF_TM_RETURN_IF_ERROR(RegisterProbes(elf_reader, path, pid));
+  return absl::OkStatus();
+}
+
 absl::Status H2GoGrpcSource::AddPID(pid_t pid) {
   absl::Status status;
   int major_version, minor_version;
   if (bpf_cfg_.find(pid) != bpf_cfg_.end()) {
     return absl::AlreadyExistsError(absl::StrFormat("Pid %d", pid));
   }
-  auto path = GetBinaryPath(pid);
+  auto path = GetBinary(pid);
   if (!path.ok()) {
     return path.status();
   }
@@ -347,12 +384,14 @@ absl::Status H2GoGrpcSource::AddPID(pid_t pid) {
   // Just copy the config to the corresponding to that pid
   if (pid_path_map_.find(*path) != pid_path_map_.end()) {
     status = Source::AddPID(pid);
+    LOG(INFO) <<
+        absl::StrFormat("%s Adding pid to found binary %s Pid %d Status %s",
+                        __FUNCTION__, *path, pid, status.ToString());
     EBPF_TM_RETURN_IF_ERROR(status);
     bpf_cfg_[pid] = bpf_cfg_[pid_path_map_[*path][0]];
     pid_path_map_[*path].push_back(pid);
     return absl::OkStatus();
   }
-  std::cout << "Path:" << *path << std::endl;
   ElfReader elf_reader(*path);
   status =
       GetGolangVersion(&elf_reader, &major_version, &minor_version);
@@ -366,23 +405,15 @@ absl::Status H2GoGrpcSource::AddPID(pid_t pid) {
   }
 
   h2_cfg_t bpf_cfg;
-
   InitCfg(&bpf_cfg);
-  status = GetStructOffsets(*path, &bpf_cfg);
-  EBPF_TM_RETURN_IF_ERROR(status);
-
-  status = GetTypes(&elf_reader, &bpf_cfg);
-  EBPF_TM_RETURN_IF_ERROR(status);
-
-  status = RegisterProbes(&elf_reader, *path, pid);
-  EBPF_TM_RETURN_IF_ERROR(status);
-
+  EBPF_TM_RETURN_IF_ERROR(PrepareBinary(&elf_reader, *path, pid, &bpf_cfg));
   bpf_cfg_[pid] = bpf_cfg;
   pid_path_map_[*path].push_back(pid);
   status = Source::AddPID(pid);
   EBPF_TM_RETURN_IF_ERROR(status);
   EBPF_TM_RETURN_IF_ERROR(AddCfg(pid));
   EBPF_TM_RETURN_IF_ERROR(Source::LoadProbes());
+  LOG(INFO) << absl::StrFormat("%s Finshed adding Pid %d", __FUNCTION__, pid);
   return absl::OkStatus();
 }
 

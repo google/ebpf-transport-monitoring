@@ -19,7 +19,7 @@
 #include <unistd.h>
 #include <dirent.h>
 #include <algorithm>
-#include <cctype> 
+#include <cctype>
 #include <fstream>
 #include <ios>
 #include <iostream>
@@ -40,7 +40,8 @@ absl::StatusOr<std::string> ReadLink(const std::string& link) {
   int dirfd = AT_FDCWD;
   auto bytes = ::readlinkat(dirfd, link.c_str(), &buffer[0], sizeof(buffer));
   if (bytes == -1) {
-    return absl::InternalError("Failed to readlinkat");
+    return absl::InternalError(
+        absl::StrFormat("Failed to readlinkat %s", link));
   }
   return std::string(buffer, bytes);
 }
@@ -65,24 +66,39 @@ absl::StatusOr<std::string> GetEnvironValue(absl::string_view task_root,
       return std::string(parts[1]);
     }
   }
-  return absl::NotFoundError("Could Not find key");
+  return absl::NotFoundError(
+      absl::StrFormat("Could not find %s:%s", task_root, key));
 }
 }  // namespace
 
 namespace ebpf_monitor {
 
+absl::StatusOr<std::string> GetBinary(pid_t pid) {
+  std::string task_root = absl::StrFormat("/proc/%s/", std::to_string(pid));
+  auto exe = GetExe(task_root);
+  if (!exe.ok()) {
+    return exe.status();
+  }
+  // We cannot use absolute path to find the executable elf in case of k8s
+  // environments. However if you are a privileged process you can access
+  // "/proc/<pid>/exe". The above code validate the presence of the executable.
+  return absl::StrFormat("/proc/%s/exe", std::to_string(pid));
+}
+
 absl::StatusOr<std::string> GetBinaryPath(pid_t pid) {
   std::string task_root = absl::StrFormat("/proc/%s/", std::to_string(pid));
   auto exe = GetExe(task_root);
   if (!exe.ok()) {
-    return absl::NotFoundError("Cound not find path to executable");
+    return absl::NotFoundError(
+        absl::StrFormat("Could not find path to executable pid:%d %s",
+                       pid, exe.status().message()));
   }
   if (exe->at(0) == '/') {
     return exe;
   }
   auto pwd = GetEnvironValue(task_root, "PWD");
   if (!pwd.ok()) {
-    return pwd;
+    return pwd.status();
   }
   return absl::StrCat(*pwd, "/", *exe);
 }

@@ -21,6 +21,7 @@
 #include <iostream>
 #include <memory>
 
+#include "absl/strings/str_format.h"
 #include "absl/log/log.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
@@ -182,7 +183,7 @@ absl::Status OpenSslSource::RegisterProbes(ElfReader* elf_reader,
 absl::Status OpenSslSource::AddPID(pid_t pid) {
   absl::Status status = Source::AddPID(pid);
   if (!status.ok()) { return status; }
-  auto path = GetBinaryPath(pid);
+  auto path = GetBinary(pid);
   if (!path.ok()) {
     return path.status();
   }
@@ -190,8 +191,9 @@ absl::Status OpenSslSource::AddPID(pid_t pid) {
   std::cout << "Path:" << *path << std::endl;
   ElfReader elf_reader(*path);
   status = RegisterProbes(&elf_reader, *path, pid);
+  LOG(INFO) << absl::StrFormat("%s Pid %d Status %s",
+                               __FUNCTION__, pid, status.ToString());
   if (!status.ok()) { return status; }
-
   pid_path_map_[*path].push_back(pid);
   return absl::OkStatus();
 }
