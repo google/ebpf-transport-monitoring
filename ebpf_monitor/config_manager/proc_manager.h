@@ -15,13 +15,22 @@
 #ifndef _EBPF_MONITOR_PID_MANAGER_PROC_MANAGER_H_
 #define _EBPF_MONITOR_PID_MANAGER_PROC_MANAGER_H_
 
+#include <memory>
 #include <string>
 #include <vector>
 
+#include "ebpf_monitor/config_manager/config_server.h"
 #include "event2/event.h"
 #include "absl/strings/string_view.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+
+#include "net_http/server/public/httpserver_interface.h"
+
+
+using net_http::HTTPServerInterface;
+using net_http::ServerRequestInterface;
+using net_http::RequestHandler;
 
 namespace ebpf_monitor {
 
@@ -36,7 +45,7 @@ constexpr absl::string_view kUnnamedProcess = "__Unnamed__";
  */
 class ProcManager {
  public:
-  ProcManager() = default;
+  ProcManager(ConfigServer* config_server);
   void Init();
   void AddProcess(absl::string_view proc_name);
   void RemoveProcess(absl::string_view proc_name);
@@ -46,15 +55,17 @@ class ProcManager {
   static void FindAllPids(evutil_socket_t, short, void *arg);  // NOLINT
   static void FindNewPids(evutil_socket_t, short, void *arg);  // NOLINT
   void AddPids (std::vector<pid_t> pids, absl::string_view proc_name);
+  void ProcessProcNameRequest(ServerRequestInterface* request);
   void CleanupDeadProcs();
   /* This map stores the name of the processes, but the value is the last pid
   that it searched, in the search for new processes with the name.*/
   absl::flat_hash_set<std::string> procs_;
   absl::flat_hash_map<pid_t, std::string> pids_;
   struct event_base *base_;
+  ConfigServer* config_server_;
 };
 
-}
+}  // namespace ebpf_monitor
 
 
 #endif  // _EBPF_MONITOR_PID_MANAGER_PROC_MANAGER_H_

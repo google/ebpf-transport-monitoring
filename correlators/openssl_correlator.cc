@@ -107,11 +107,14 @@ bool OpenSslCorrelator::CheckUUID(std::string uuid) {
 void OpenSslCorrelator::HandleCleanup(evutil_socket_t, short, void *arg) { // NOLINT
   DeleteCtx *dctx = static_cast<DeleteCtx *>(arg);
   auto status = dctx->self->data_cntl_map_->DeleteMapEntry(&dctx->ptr);
+  if (!dctx->self->tcp_conn_ctx_.contains(dctx->ptr)) {
+    return;
+  }
+  dctx->self->tcp_conn_ctx_.erase(dctx->ptr);
   if (!status.ok()) {
     std::cerr << status << std::endl;
   }
   LOG(INFO) << "Erasing context " << dctx->ptr;
-  dctx->self->tcp_conn_ctx_.erase(dctx->ptr);
   delete dctx;
 }
 
@@ -140,7 +143,7 @@ absl::Status OpenSslCorrelator::HandleCorrelation(void * data) {
       static_cast<const openssl_correlation *const>(data);
   uint8_t enable = 1;
   if (c_data->mdata.type == kSslNewConnection){
-    LOG(INFO) << "Adding new connection " << c_data->mdata.conn_id;
+    LOG(INFO) << "Adding new Openssl connection " << c_data->mdata.conn_id;
     AddEvent(c_data->mdata.conn_id);
     return data_cntl_map_->AddMapEntry(&c_data->mdata.conn_id, &enable);
   }

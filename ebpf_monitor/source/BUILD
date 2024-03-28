@@ -19,15 +19,24 @@ package(
 
 cc_library(
     name = "btf_min",
-    deps = [":reduced_btf"],
+    srcs = [":reduced_btfs"],
+    linkstatic = True,
     alwayslink = True,
 )
 
-genrule(
+# Linking the file directly to a .o causes the object to emit the entire path in name of the
+# variables. Since the path can change between google3 and OSS it is put in a file group to keep it
+# constant
+filegroup(
     name = "reduced_btf",
     srcs = ["reduced_btfs.tar.gz"],
-    outs = ["reduced_btf.o"],
-    cmd = "$(LD) -r -b binary $(locations reduced_btfs.tar.gz) -m elf_x86_64 -o $@",
+)
+
+genrule(
+    name = "reduced_btfs",
+    srcs = [":reduced_btf"],
+    outs = ["reduced_btfs.o"],
+    cmd = "cp $(locations :reduced_btf) reduced_btfs.tar.gz && $(LD) -r -b binary reduced_btfs.tar.gz -m elf_x86_64 -o $@",
     toolchains = [
         "@bazel_tools//tools/cpp:current_cc_toolchain",
     ],
@@ -73,6 +82,20 @@ cc_library(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/time",
+        "@libbpf",
+    ],
+)
+
+cc_test(
+    name = "btf_test",
+    srcs = ["btf_test.cc"],
+    linkstatic = True,
+    deps = [
+        ":btf_min",
+        ":source",
+        "//ebpf_monitor/utils:archive_handler",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_googletest//:gtest_main",
         "@libbpf",
     ],
 )

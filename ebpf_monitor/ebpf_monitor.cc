@@ -13,22 +13,24 @@
 // limitations under the License.
 #include "ebpf_monitor/ebpf_monitor.h"
 
-#include <string>
-#include <memory>
 #include <cstdint>
+#include <memory>
+#include <string>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/flags/flag.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/str_format.h"
 #include "correlators/h2_go_correlator.h"
 #include "correlators/openssl_correlator.h"
-#include "ebpf_monitor/utils/event_manager.h"
-#include "ebpf_monitor/data_manager.h"
 #include "ebpf_monitor/correlator/correlator.h"
+#include "ebpf_monitor/data_manager.h"
 #include "ebpf_monitor/exporter/log_exporter.h"
 #include "ebpf_monitor/exporter/metric_exporter.h"
+#include "ebpf_monitor/utils/event_manager.h"
 #include "exporters/file_exporter.h"
 #include "exporters/gcp_exporter.h"
 #include "exporters/oc_gcp_exporter.h"
@@ -78,9 +80,8 @@ absl::Status EbpfMonitor::MapSourceInit(){
 
 absl::Status EbpfMonitor::CreateLoggers() {
   if (absl::GetFlag(FLAGS_file_log)) {
-    logger_ = new ebpf_monitor::FileLogger(1, 1048576 * 50, "./logs/");
-    metric_exporter_ =
-        new ebpf_monitor::FileMetricExporter(1, 1048576 * 50, "./metrics/");
+    logger_ = new ebpf_monitor::FileLogger();
+    metric_exporter_ = new ebpf_monitor::FileMetricExporter();
     return absl::OkStatus();
   } else if (absl::GetFlag(FLAGS_opencensus_log)) {
     std::string gcp_creds = absl::GetFlag(FLAGS_gcp_creds);
@@ -250,46 +251,58 @@ absl::Status EbpfMonitor::Start(){
   if (!dry_run_) {
     EBPF_TM_RETURN_IF_ERROR(LoadProbes());
   }
+  LOG(INFO) << "Starting Event Loop";
   EventManager::GetInstance().Start();
   return absl::OkStatus();  // To keep compiler happy
 }
 
 absl::Status EbpfMonitor::Monitor(pid_t pid){
-  auto status = sources_["tcp"]->AddPID(pid);
-  if (!status.ok()) {
-    return status;
+  LOG(INFO) << "Monitor: " << pid;
+  auto tcp_status = sources_["tcp"]->AddPID(pid);
+  if (!tcp_status.ok()) {
+    return tcp_status;
   }
-  status = sources_["h2_golang"]->AddPID(pid);
-  if (status.ok()) {
+  LOG(INFO) << "Found TCP tracepoints";
+  auto h2_status = sources_["h2_golang"]->AddPID(pid);
+  if (h2_status.ok()) {
+    LOG(INFO) << "Found H2 Go tracepoints:" << pid;
     return absl::OkStatus();
   }
   // Note that this line executes when the above statement fails.
-  status = sources_["openssl"]->AddPID(pid);
-  if (status.ok()) {
+  auto openssl_status = sources_["openssl"]->AddPID(pid);
+  if (openssl_status.ok()) {
+    LOG(INFO) << "Found OpenSsl tracepoints:" << pid;
     return absl::OkStatus();
   }
-  return absl::InternalError("Could not find tracepoints");
+  return absl::InternalError(absl::StrFormat(
+      "EbpfMonitor::Monitor Monitor could not find tracepoints: tcp error:|%s| "
+      "h2_golang error:|%s| openssl error:|%s|",
+      tcp_status.ToString(), h2_status.ToString(), openssl_status.ToString()));
 }
 
 
 absl::Status EbpfMonitor::StopMonitoring(pid_t pid){
   /* The code below is ordered as tcp source is installed for all pids.
-  The other sources are installed for only specific pid hence we remove the 
+  The other sources are installed for only specific pid hence we remove the
   pid from each source succesively till one of the returns true in which case
   we don't have to do go through any othe sources.*/
-  auto status = sources_["tcp"]->RemovePID(pid);
-  if (!status.ok()) {
-    return status;
+  LOG(INFO) << "StopMonitoring: " << pid;
+  auto tcp_status = sources_["tcp"]->RemovePID(pid);
+  if (!tcp_status.ok()) {
+    return tcp_status;
   }
-  status = sources_["h2_golang"]->RemovePID(pid);
-  if (status.ok()) {
+  auto h2_status = sources_["h2_golang"]->RemovePID(pid);
+  if (h2_status.ok()) {
     return absl::OkStatus();
   }
   // Note that this line executes when the above statement fails.
-  status = sources_["openssl"]->RemovePID(pid);
-  if (status.ok()) {
+  auto openssl_status = sources_["openssl"]->RemovePID(pid);
+  if (openssl_status.ok()) {
     return absl::OkStatus();
   }
-  return absl::InternalError("Could not find tracepoints");
+  return absl::InternalError(absl::StrFormat(
+      "EbpfMonitor::Monitor StopMonitoring could not find tracepoints: tcp "
+      "error:|%s| h2_golang error:|%s| openssl error:|%s|",
+      tcp_status.ToString(), h2_status.ToString(), openssl_status.ToString()));
 }
 }  // namespace ebpf_monitor

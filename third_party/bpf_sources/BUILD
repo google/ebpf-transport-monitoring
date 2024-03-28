@@ -1,5 +1,5 @@
-load("//rules:bpf.bzl", "bpf_program")
 load("@rules_pkg//:pkg.bzl", "pkg_tar")
+load("//rules:bpf.bzl", "bpf_program")
 
 package(default_visibility = ["//visibility:public"])
 

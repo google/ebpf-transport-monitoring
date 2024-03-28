@@ -1,11 +1,11 @@
 // Copyright 2023 Google LLC
-// 
+//
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
-// 
+//
 //     http://www.apache.org/licenses/LICENSE-2.0
-// 
+//
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -16,9 +16,9 @@
 #define _EBPF_MONITOR__STDOUT_EVENT_LOGGER_H_
 
 #include <string>
-#include <unordered_map>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/status/status.h"
 #include "ebpf_monitor/exporter/log_exporter.h"
 
 namespace ebpf_monitor {
@@ -37,6 +37,6 @@ class StdoutEventExporter : public LogExporterInterface {
   absl::flat_hash_map<std::string, bool> logs_;
 };
 
-}  // namespace prober
+}  // namespace ebpf_monitor
 
 #endif  // _EBPF_MONITOR__STDOUT_EVENT_LOGGER_H_

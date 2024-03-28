@@ -27,6 +27,7 @@
 
 #include "absl/time/time.h"
 #include "absl/time/clock.h"
+#include "absl/log/log.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -103,6 +104,10 @@ void H2GoCorrelator::HandleNewConnection (const struct ConnInfo *conn_info) {
     connection_map_[conn_info->tcp_conn_id] = conn_info->UUID;
     connection_map_[conn_info->h2_conn_id] = conn_info->UUID;
   }
+  LOG(INFO) << absl::StrFormat("%s uuid: %s, tcp_conn_id: %d, h2_conn_id: %d",
+                               __FUNCTION__,
+                               conn_info->UUID, conn_info->tcp_conn_id,
+                               conn_info->h2_conn_id);
 }
 
 absl::Status H2GoCorrelator::HandleHTTP2(void * data) {
@@ -140,6 +145,9 @@ absl::Status H2GoCorrelator::HandleHTTP2(void * data) {
     conn_info.h2_conn_id = c_data->conn_id;
     conn_info.start_time = absl::Now();
     this->correlator_.insert({key, conn_info});
+    LOG(INFO) <<
+        absl::StrFormat("Found new grpc connection uuid: %s, h2_conn_id: %d",
+                        key, c_data->conn_id);
   } else {
     this->correlator_[key].h2_conn_id = c_data->conn_id;
   }
@@ -197,6 +205,9 @@ absl::Status H2GoCorrelator::HandleTCP(void * data) {
         conn_info.tcp_conn_id = event->mdata.connection_id;
         conn_info.pid = event->mdata.pid;
         conn_info.start_time = absl::Now();
+        LOG(INFO) <<
+        absl::StrFormat("%s Found new tcp connection uuid: %s, tcp_conn_id: %d",
+                        __FUNCTION__, key, event->mdata.connection_id);
         this->correlator_.insert({key, conn_info});
       } else {
         this->correlator_[key].tcp_conn_id = event->mdata.connection_id;
@@ -252,6 +263,8 @@ void H2GoCorrelator::Cleanup() {
   for (auto it = correlator_.begin(); it != correlator_.end();) {
     if (it->second.h2_conn_id != 0 && it->second.tcp_conn_id != 0 &&
       now - it->second.start_time > absl::Seconds(120)) {
+      LOG(INFO) << absl::StrFormat("Deleting connection uuid: %s",
+                                   it->second.UUID);
       correlator_.erase(it++);
     } else {
       ++it;

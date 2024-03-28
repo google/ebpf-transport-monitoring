@@ -18,9 +18,13 @@
 #include <unistd.h>
 #include <cstddef>
 #include <iostream>
+#include <memory>
 #include <ostream>
 #include <string>
+#include <cstdio>
+#include <stdint.h>
 #include <vector>
+
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/strings/str_format.h"
@@ -32,6 +36,11 @@
 #include "ebpf_monitor/ebpf_monitor.h"
 #include "ebpf_monitor/utils/event_manager.h"
 #include "event2/event.h"
+#include "ebpf_monitor/config_manager/config_server.h"
+#include "net_http/server/public/server_request_interface.h"
+#include "net_http/public/response_code_enum.h"
+
+using net_http::HTTPStatusCode;
 
 namespace ebpf_monitor {
 
@@ -40,6 +49,59 @@ typedef struct {
   std::string proc_name;
   pid_t       last_pid;
 } __FindPids;
+
+ProcManager::ProcManager(ConfigServer* server):
+  config_server_(server){
+  auto proc_handler = [this](ServerRequestInterface* request) {
+    ProcessProcNameRequest(request);
+  };
+  config_server_->AddRequestHandler("/proc-name", proc_handler);
+}
+
+void ProcManager::ProcessProcNameRequest(ServerRequestInterface* request) {
+  absl::string_view type = request->http_method();
+  auto content_type = request->GetRequestHeader("content-type");
+  if (content_type.empty() || content_type != "text/plain") {
+    request->ReplyWithStatus(HTTPStatusCode::BAD_REQUEST);
+    return;
+  }
+  int64_t num_bytes = 0;
+  auto body = request->ReadRequestBytes(&num_bytes);
+  // Name of process in linux cannot be more than 255 bytes
+  if (num_bytes == 0 || num_bytes > 255) {
+    net_http::SetContentTypeTEXT(request);
+    request->WriteResponseString("Invalid name, expected length less than 256");
+    request->ReplyWithStatus(HTTPStatusCode::BAD_REQUEST);
+    return;
+  }
+
+  if (type == "GET") {
+    absl::string_view proc_name = absl::string_view(body.get(), num_bytes);
+    net_http::SetContentTypeTEXT(request);
+    bool exists = CheckProcess(proc_name);
+    fprintf(stderr, "lightfoot: handle GET request for |%s| exists: %d\n",
+            std::string(proc_name.data(), proc_name.length()).c_str(), exists);
+    if (exists) {
+      request->ReplyWithStatus(HTTPStatusCode::OK);
+    } else {
+      request->ReplyWithStatus(HTTPStatusCode::NOT_FOUND);
+    }
+    return;
+  }
+
+  if (type == "POST") {
+    absl::string_view proc_name = absl::string_view(body.get(), num_bytes);
+    fprintf(stderr, "lightfoot: handle POST request for |%s|\n",
+            std::string(proc_name.data(), proc_name.length()).c_str());
+    AddProcess(proc_name);
+    request->ReplyWithStatus(HTTPStatusCode::OK);
+    return;
+  }
+
+  net_http::SetContentTypeTEXT(request);
+  request->WriteResponseString("Unknown request type");
+  request->ReplyWithStatus(HTTPStatusCode::BAD_REQUEST);
+}
 
 void ProcManager::Init() {
   base_ = EventManager::GetInstance().event_base();
@@ -155,7 +217,7 @@ void ProcManager::CleanupDeadProcs() {
     } else {
         ++it;
     }
-}
+  }
 
   for (const auto& proc : this->pids_) {
     auto pid = proc.first;

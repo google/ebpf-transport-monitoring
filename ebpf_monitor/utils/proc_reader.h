@@ -17,6 +17,7 @@
 
 #include <sys/types.h>
 
+#include <vector>
 #include <string>
 
 #include "absl/status/status.h"
@@ -26,6 +27,7 @@ namespace ebpf_monitor {
 
 absl::StatusOr<std::string> GetBinaryPath(pid_t pid);
 absl::StatusOr<std::vector<pid_t>> GetProcesses(std::string proc_name);
+absl::StatusOr<std::string> GetBinary(pid_t pid);
 
 }  // namespace ebpf_monitor
 

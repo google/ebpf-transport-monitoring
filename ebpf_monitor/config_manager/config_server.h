@@ -16,30 +16,33 @@
 #define _EBPF_MONITOR_CONFIG_MANAGER_CONFIG_SERVER_H_
 
 #include <memory>
+#include <stdint.h>
+#include <sys/types.h>
+#include "absl/flags/flag.h"
+#include "absl/strings/string_view.h"
 #include "absl/status/status.h"
 
-#include "ebpf_monitor/config_manager/proc_manager.h"
 #include "net_http/server/public/httpserver_interface.h"
-
-#include <memory>
 
 using net_http::HTTPServerInterface;
 using net_http::ServerRequestInterface;
-
+using net_http::RequestHandler;
 
 namespace ebpf_monitor {
 
 class ConfigServer {
  public:
-  ConfigServer() = delete;
-  ConfigServer(std::shared_ptr<ProcManager> proc_manager) :
-    proc_manager_(proc_manager) {}
+  ConfigServer(uint16_t port) :port_(port) {}
+  void Init();
+  void AddRequestHandler (absl::string_view request_path,
+                          RequestHandler request_handler);
   absl::Status Start();
-  absl::Status Stop();
+  void Stop();
  private:
   void ProcessProcNameRequest(ServerRequestInterface* request);
+  void ProcessCrioRequest(ServerRequestInterface* request);
   std::unique_ptr<HTTPServerInterface> http_server_;
-  std::shared_ptr<ProcManager> proc_manager_;
+  uint16_t port_;
 };
 
 }  // namespace ebpf_monitor
