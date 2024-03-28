@@ -82,7 +82,7 @@ struct {
   __uint(type, BPF_MAP_TYPE_LRU_HASH);
   __uint(key_size, sizeof(__u64));
   __uint(value_size, sizeof(uint8_t));
-  __uint(max_entries, MAX_H2_CONN_TRACED * 2);
+  __uint(max_entries, MAX_H2_CONN_TRACED * 4);
 } data_sample_cntl SEC(".maps");
 
 

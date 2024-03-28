@@ -27,6 +27,7 @@ cc_library(
         "//ebpf_monitor/source:data_ctx",
         "//sources/common:correlator_types",
         "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/log",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",

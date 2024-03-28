@@ -38,6 +38,9 @@ class H2GoGrpcSource : public Source {
   std::string ToString() const override { return "H2GoGrpcSource"; };
 
  private:
+  friend class H2GoGrpcSourceTest;
+  absl::Status PrepareBinary(ElfReader* elf_reader, std::string& path,
+                              uint64_t pid, h2_cfg_t* bpf_cfg);
   absl::Status CreateProbes(ElfReader* elf_reader,
                             std::string& path,
                             absl::flat_hash_set<std::string>& functions,

@@ -12,35 +12,42 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-
 #include "exporters/file_exporter.h"
 
+#include <cstdint>
 #include <string>
 
+#include "spdlog/common.h"
+#include "spdlog/sinks/rotating_file_sink.h"
+#include "absl/flags/flag.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/string_view.h"
+#include "ebpf_monitor/exporter/data_types.h"
 #include "events.h"
 #include "exporters/exporters_util.h"
-#include "ebpf_monitor/exporter/data_types.h"
-#include "spdlog/fmt/bin_to_hex.h"
-#include "spdlog/sinks/rotating_file_sink.h"
-#include "spdlog/spdlog.h"
+
+ABSL_FLAG(uint32_t, file_log_max_size, 50,
+          "Size per file of metrics and logs before rotation (Mb).");
+ABSL_FLAG(uint16_t, file_log_num_files, 1,
+          "Number of rotated files to create to store logs");
+ABSL_FLAG(std::string, file_log_location, "/tmp",
+          "Directory to store logs and metrics");
 
 namespace ebpf_monitor {
 
-FileLogger::FileLogger() {
-  file_size_ = 1048576 * 50;
-  max_files_ = 2;
-  directory_ = "/tmp";
-}
-FileLogger::FileLogger(uint8_t max_files, uint32_t file_size,
-                       std::string dir_name)
-    : max_files_(max_files), file_size_(file_size), directory_(dir_name) {}
+FileLogger::FileLogger()
+    : max_files_(absl::GetFlag(FLAGS_file_log_num_files)),
+      file_size_(absl::GetFlag(FLAGS_file_log_max_size) * 1024 * 1024),
+      directory_(absl::GetFlag(FLAGS_file_log_location)) {}
 
 absl::Status FileLogger::Init() {
   spdlog::file_event_handlers handlers;
-  logger_ = spdlog::rotating_logger_st("file_logger", directory_ + "/ebpf.txt",
-                                       file_size_, max_files_, true, handlers);
+  LOG(INFO) << "Creating file logger" << directory_ + "/logs/ebpf.txt";
+  logger_ =
+      spdlog::rotating_logger_st("file_logger", directory_ + "/logs/ebpf.txt",
+                                 file_size_, max_files_, true, handlers);
   if (logger_ == nullptr) {
     return absl::InternalError("Could not create file logger");
   }
@@ -87,19 +94,16 @@ absl::Status FileLogger::HandleData(absl::string_view log_name,
   return absl::OkStatus();
 }
 
-FileMetricExporter::FileMetricExporter() {
-  file_size_ = 1048576 * 50;
-  max_files_ = 2;
-  directory_ = "/tmp";
-}
-
-FileMetricExporter::FileMetricExporter(uint8_t max_files, uint32_t file_size,
-                                       std::string dir_name)
-    : max_files_(max_files), file_size_(file_size), directory_(dir_name) {}
+FileMetricExporter::FileMetricExporter()
+    : max_files_(absl::GetFlag(FLAGS_file_log_num_files)),
+      file_size_(absl::GetFlag(FLAGS_file_log_max_size) * 1024 * 1024),
+      directory_(absl::GetFlag(FLAGS_file_log_location)) {}
 
 absl::Status FileMetricExporter::Init() {
-  logger_ = spdlog::rotating_logger_st("file_metric", directory_ + "/ebpf.txt",
-                                       file_size_, max_files_);
+  LOG(INFO) << "Creating file metrics Exporter"
+            << directory_ + "/metrics/ebpf.txt";
+  logger_ = spdlog::rotating_logger_st(
+      "file_metric", directory_ + "/metrics/ebpf.txt", file_size_, max_files_);
   if (logger_ == nullptr) {
     return absl::InternalError("Could not create file metric exporter");
   }

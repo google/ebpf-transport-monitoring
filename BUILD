@@ -32,6 +32,7 @@ cc_binary(
     deps = [
         "//ebpf_monitor",
         "//ebpf_monitor/config_manager:config_server",
+        "//ebpf_monitor/config_manager:k8s_manager",
         "//ebpf_monitor/config_manager:proc_manager",
         "@com_google_absl//absl/base:log_severity",
         "@com_google_absl//absl/flags:flag",

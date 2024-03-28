@@ -15,9 +15,9 @@
 #include <unistd.h>
 
 #include <thread>
+#include <cstdint>
 #include <iostream>
 #include <ostream>
-#include <memory>
 #include <vector>
 
 #include "absl/flags/flag.h"
@@ -27,11 +27,14 @@
 
 #include "absl/status/status.h"
 #include "ebpf_monitor/ebpf_monitor.h"
+#include "ebpf_monitor/config_manager/k8s_manager.h"
 #include "ebpf_monitor/config_manager/proc_manager.h"
 #include "ebpf_monitor/config_manager/config_server.h"
 
 ABSL_FLAG(bool, dry_run, false, "Run without loading eBPF code");
 ABSL_FLAG(int, log_level, 3, "Log level (0: INFO, 1: WARNING, 2: ERROR)");
+ABSL_FLAG(uint16_t, server_port, 12000, "config server port");
+
 
 int main(int argc, char **argv) {
   absl::Status status;
@@ -59,16 +62,19 @@ int main(int argc, char **argv) {
     std::cerr <<  status.message() << std::endl;
     return -1;
   }
-  std::shared_ptr<ebpf_monitor::ProcManager> proc_manager =
-      std::make_shared<ebpf_monitor::ProcManager>();
-  proc_manager->Init();
-  proc_manager->AddPids(pids);
 
-  ebpf_monitor::ConfigServer server(proc_manager);
+  ebpf_monitor::ConfigServer *server =
+      new ebpf_monitor::ConfigServer(absl::GetFlag(FLAGS_server_port));
+  server->Init();
   std::thread config_server_thread
-      (&ebpf_monitor::ConfigServer::Start, &server);
+      (&ebpf_monitor::ConfigServer::Start, server);
 
-  config_server_thread.detach();
+  ebpf_monitor::ProcManager proc_manager (server);
+  proc_manager.Init();
+  proc_manager.AddPids(pids);
+
+  ebpf_monitor::K8sManager k8s_manager =
+      ebpf_monitor::K8sManager(server, &proc_manager);
   status = ebpf_monitor::EbpfMonitor::GetInstance().Start();
   if (!status.ok()) {
     std::cerr <<  status.message() << std::endl;
