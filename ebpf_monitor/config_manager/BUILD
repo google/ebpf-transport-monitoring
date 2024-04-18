@@ -32,6 +32,29 @@ cc_library(
 )
 
 cc_library(
+    name = "proc_http_handler",
+    srcs = ["proc_http_handler.cc"],
+    hdrs = ["proc_http_handler.h"],
+    deps = [
+        ":config_server",
+        ":proc_manager",
+        "//ebpf_monitor",
+        "//ebpf_monitor/utils:event_manager",
+        "//ebpf_monitor/utils:proc_reader",
+        "@com_github_libevent_libevent//:libevent",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/time",
+        "@net_http//net_http/public:shared_files",
+        "@net_http//net_http/server/public:http_server",
+        "@net_http//net_http/server/public:http_server_api",
+    ],
+)
+
+cc_library(
     name = "proc_manager",
     srcs = ["proc_manager.cc"],
     hdrs = ["proc_manager.h"],
@@ -53,9 +76,9 @@ cc_library(
 )
 
 cc_library(
-    name = "k8s_manager",
-    srcs = ["k8s_manager.cc"],
-    hdrs = ["k8s_manager.h"],
+    name = "k8s_http_handler",
+    srcs = ["k8s_http_handler.cc"],
+    hdrs = ["k8s_http_handler.h"],
     deps = [
         ":config_server",
         ":proc_manager",

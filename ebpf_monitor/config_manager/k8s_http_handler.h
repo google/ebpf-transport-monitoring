@@ -27,16 +27,15 @@
 
 namespace ebpf_monitor {
 
-class K8sManager {
+class K8sHttpHandler {
  public:
-  K8sManager(ConfigServer* server, ProcManager* proc_manager);
+  K8sHttpHandler(ConfigServer* server, ProcManager* proc_manager);
   absl::Status AddContainer(std::string cri,
                             std::string container_id);
  private:
   void ProcessCriRequest(ServerRequestInterface* request);
   static void FindPids(evutil_socket_t, short, void *arg);  // NOLINT
   absl::flat_hash_map<std::string, std::string> containers_;
-  ConfigServer* config_server_;
   ProcManager* proc_manager_;
   struct event_base *base_;
 };

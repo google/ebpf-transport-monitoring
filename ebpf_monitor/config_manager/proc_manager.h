@@ -15,7 +15,6 @@
 #ifndef _EBPF_MONITOR_PID_MANAGER_PROC_MANAGER_H_
 #define _EBPF_MONITOR_PID_MANAGER_PROC_MANAGER_H_
 
-#include <memory>
 #include <string>
 #include <vector>
 
@@ -25,12 +24,6 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 
-#include "net_http/server/public/httpserver_interface.h"
-
-
-using net_http::HTTPServerInterface;
-using net_http::ServerRequestInterface;
-using net_http::RequestHandler;
 
 namespace ebpf_monitor {
 
@@ -45,11 +38,18 @@ constexpr absl::string_view kUnnamedProcess = "__Unnamed__";
  */
 class ProcManager {
  public:
-  ProcManager(ConfigServer* config_server);
-  void Init();
-  void AddProcess(absl::string_view proc_name);
-  void RemoveProcess(absl::string_view proc_name);
+  ProcManager() = default;
+  void Init(bool enqueue = true);
   void AddPids (std::vector<pid_t> pids);
+  // AddProcesses adds all processes to list of tracked processes synchronously.
+  // Use this for bulk adds of processes if adding processes from cli or config
+  // files based inputs.
+  void AddProcesses (std::vector<std::string> procs);
+  // AddProcessAsync is an async function to add process.
+  // Use this for http handler where we don't want to block the reply to HTTP
+  // client while lightfoot searches for processes.
+  void AddProcessAsync(absl::string_view proc_name);
+  void RemoveProcess(absl::string_view proc_name);
   bool CheckProcess(absl::string_view proc_name);
  private:
   static void FindAllPids(evutil_socket_t, short, void *arg);  // NOLINT
@@ -62,7 +62,7 @@ class ProcManager {
   absl::flat_hash_set<std::string> procs_;
   absl::flat_hash_map<pid_t, std::string> pids_;
   struct event_base *base_;
-  ConfigServer* config_server_;
+  bool enqueue_;
 };
 
 }  // namespace ebpf_monitor

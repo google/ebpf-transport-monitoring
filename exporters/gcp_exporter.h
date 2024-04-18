@@ -15,17 +15,18 @@
 #ifndef _EXPORTERS_GCP_EXPORTER_H_
 #define _EXPORTERS_GCP_EXPORTER_H_
 
+#include <cstdint>
 #include <memory>
+#include <vector>
 #include <string>
 
-#include "absl/status/statusor.h"
+#include "absl/container/flat_hash_map.h"
+#include "absl/status/status.h"
 #include "absl/strings/string_view.h"
 #include "absl/time/time.h"
-#include "exporters/exporters_util.h"
 #include "google/cloud/logging/logging_service_v2_client.h"
 #include "google/cloud/project.h"
 #include "ebpf_monitor/exporter/log_exporter.h"
-#include "ebpf_monitor/exporter/metric_exporter.h"
 #include "ebpf_monitor/exporter/data_types.h"
 
 namespace ebpf_monitor {

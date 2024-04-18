@@ -29,6 +29,7 @@ cc_library(
         "//sources/common:defines",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
     ],
 )
@@ -81,6 +82,7 @@ cc_library(
         "//ebpf_monitor/exporter:log_exporter",
         "//ebpf_monitor/exporter:metric_exporter",
         "//sources/common:defines",
+        "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",

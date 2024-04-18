@@ -48,12 +48,12 @@
  decreased based on deployment feedback. Some events can be missed, hence factor
  in the use of multiple ring buffers and threads and priority of events while
  changing this value. */
-#define MAX_PID_TRACED 16
+#define MAX_PID_TRACED 128
 
 /*
 Maximum connections traced. The value is an arbitrary limit.
 */
-#define MAX_CONN_TRACED MAX_PID_TRACED * 16
+#define MAX_CONN_TRACED MAX_PID_TRACED * 32
 
 /* In theory this count is 2^32 - 1
   In practice the number of concurrent streams per connection is 100.

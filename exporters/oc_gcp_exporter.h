@@ -21,12 +21,12 @@
 #include "absl/status/status.h"
 #include "exporters/exporters_util.h"
 #include "google/monitoring/v3/metric_service.grpc.pb.h"
+#include "ebpf_monitor/exporter/data_types.h"
 #include "ebpf_monitor/exporter/metric_exporter.h"
 #include "opencensus/stats/stats.h"
 
 namespace ebpf_monitor {
 
-enum class AggregationLevel { kHost, kConnection };
 
 class OCGCPMetricExporter : public MetricExporterInterface {
  public:
