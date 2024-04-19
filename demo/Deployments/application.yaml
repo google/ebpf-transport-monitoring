@@ -1,0 +1,132 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: server-pod
+  labels:
+    app: server
+    lightfoot: disable
+spec:
+  containers:
+    - name: server-container
+      image: localhost:5000/server
+      volumeMounts:
+      - name: my-secret-volume
+        mountPath: "/etc/secret"
+      ports:
+        - containerPort: 50051
+      resources:
+        limits:
+          cpu: "500m"
+          memory: "512Mi"
+        requests:
+          cpu: "200m"
+          memory: "256Mi"
+  volumes:
+  - name: my-secret-volume
+    secret:
+      secretName: server-secret
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: go-client-pod
+  labels:
+    app: client
+    lightfoot: enable
+spec:
+  containers:
+    - name: go-client
+      image: localhost:5000/go-client
+      volumeMounts:
+      - name: my-secret-volume
+        mountPath: "/etc/secret"
+      resources:
+        limits:
+          cpu: "500m"
+          memory: "512Mi"
+  volumes:
+  - name: my-secret-volume
+    secret:
+      secretName: go-client-secret
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: node-client-pod
+  labels:
+    app: node-client
+    lightfoot: enable
+spec:
+  containers:
+    - name: node-client-container
+      image: localhost:5000/node-client
+      volumeMounts:
+      - name: my-secret-volume
+        mountPath: "/etc/secret"
+      resources:
+        limits:
+          cpu: "500m"
+          memory: "512Mi"
+  volumes:
+  - name: my-secret-volume
+    secret:
+      secretName: node-client-secret
+---
+#apiVersion: v1
+#kind: Pod
+#metadata:
+#  name: java-client-pod
+#  labels:
+#    app: client
+#    lightfoot: enable
+#spec:
+#  containers:
+#    - name: java-client
+#      image: localhost:5000/java-client
+#      volumeMounts:
+#      - name: my-secret-volume
+#        mountPath: "/etc/secret"
+#      resources:
+#        limits:
+#          cpu: "500m"
+#          memory: "512Mi"
+#  volumes:
+#  - name: my-secret-volume
+#    secret:
+#      secretName: java-client-secret
+#---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: cpp-client-pod
+  labels:
+    app: cpp-client
+    lightfoot: enable
+spec:
+  containers:
+    - name: cpp-client-container
+      image: localhost:5000/cpp-client
+      volumeMounts:
+      - name: my-secret-volume
+        mountPath: "/etc/secret"
+      resources:
+        limits:
+          cpu: "500m"
+          memory: "512Mi"
+  volumes:
+  - name: my-secret-volume
+    secret:
+      secretName: cpp-client-secret
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: server
+spec:
+  selector:
+    app: server
+  type: ClusterIP
+  ports:
+    - protocol: TCP
+      port: 50051
+      targetPort: 50051
