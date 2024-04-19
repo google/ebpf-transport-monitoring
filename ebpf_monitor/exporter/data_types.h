@@ -22,6 +22,8 @@
 
 namespace ebpf_monitor {
 
+enum class AggregationLevel { kHost, kConnection };
+
 enum class MetricType {
   kUint8,
   kUint16,

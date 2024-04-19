@@ -15,11 +15,14 @@
 #ifndef _EBPF_MONITOR__STDOUT_EVENT_LOGGER_H_
 #define _EBPF_MONITOR__STDOUT_EVENT_LOGGER_H_
 
+#include <cstdint>
 #include <string>
 
+#include "absl/strings/string_view.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "ebpf_monitor/exporter/log_exporter.h"
+#include "ebpf_monitor/exporter/data_types.h"
 
 namespace ebpf_monitor {
 

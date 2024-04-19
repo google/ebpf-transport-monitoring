@@ -51,7 +51,7 @@
 
 ABSL_FLAG(bool, extract_source, true, "Extract source from linked tar");
 ABSL_FLAG(bool, file_log, false, "Log to file");
-ABSL_FLAG(bool, host_agg, false, "Aggregate at host level");
+ABSL_FLAG(bool, host_agg, true, "Aggregate at host level");
 ABSL_FLAG(bool, stdin_eof, true, "Exit on EOF on stdin.");
 ABSL_FLAG(bool, opencensus_log, false,
           "Use opencensus to export.");

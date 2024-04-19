@@ -39,8 +39,6 @@ class ConfigServer {
   absl::Status Start();
   void Stop();
  private:
-  void ProcessProcNameRequest(ServerRequestInterface* request);
-  void ProcessCrioRequest(ServerRequestInterface* request);
   std::unique_ptr<HTTPServerInterface> http_server_;
   uint16_t port_;
 };

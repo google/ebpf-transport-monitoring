@@ -14,15 +14,16 @@
 
 #include "exporters/stdout_event_logger.h"
 
-#include <cstdio>
-#include <optional>
-#include <ostream>
+#include <cstdint>
+#include <iostream>
 #include <string>
-#include <unordered_map>
 
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 #include "exporters/exporters_util.h"
+#include "ebpf_monitor/exporter/data_types.h"
+
 
 namespace ebpf_monitor {
 

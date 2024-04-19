@@ -1,4 +1,4 @@
-#include "ebpf_monitor/config_manager/k8s_manager.h"
+#include "ebpf_monitor/config_manager/k8s_http_handler.h"
 
 #include <vector>
 #include <iostream>
@@ -21,7 +21,6 @@
 #include "net_http/public/response_code_enum.h"
 #include "net_http/server/public/server_request_interface.h"
 #include "ebpf_monitor/config_manager/config_server.h"
-#include "ebpf_monitor/config_manager/proc_manager.h"
 #include "absl/strings/str_split.h"
 
 using net_http::HTTPStatusCode;
@@ -29,7 +28,7 @@ using net_http::HTTPStatusCode;
 namespace ebpf_monitor {
 
 typedef struct {
-  K8sManager * self;
+  K8sHttpHandler * self;
   std::string cri;
   std::string cid;
 } __Cri;
@@ -93,7 +92,7 @@ static std::vector<pid_t> CrioGetPIDs (std::string cid) {
   return pids;
 }
 
-void K8sManager::ProcessCriRequest(ServerRequestInterface* request) {
+void K8sHttpHandler::ProcessCriRequest(ServerRequestInterface* request) {
   absl::string_view type = request->http_method();
   auto content_type = request->GetRequestHeader("content-type");
   if (content_type.empty() || content_type != "text/plain") {
@@ -143,17 +142,17 @@ void K8sManager::ProcessCriRequest(ServerRequestInterface* request) {
   request->ReplyWithStatus(HTTPStatusCode::BAD_REQUEST);
 }
 
-K8sManager::K8sManager(ConfigServer* server,
+K8sHttpHandler::K8sHttpHandler(ConfigServer* server,
                        ProcManager* proc_manager)
-    : config_server_(server) , proc_manager_(proc_manager){
+    :proc_manager_(proc_manager){
   base_ = EventManager::GetInstance().event_base();
   auto crio_handler = [this](ServerRequestInterface* request) {
     this->ProcessCriRequest(request);
   };
-  config_server_->AddRequestHandler("/crio-id", crio_handler);
+  server->AddRequestHandler("/crio-id", crio_handler);
 }
 
-absl::Status K8sManager::AddContainer(std::string cri,
+absl::Status K8sHttpHandler::AddContainer(std::string cri,
                                       std::string container_id) {
   containers_.insert({container_id, cri});
   __Cri *crio = new __Cri();
@@ -161,7 +160,7 @@ absl::Status K8sManager::AddContainer(std::string cri,
   crio->cid = container_id;
   crio->self = this;
   int error = event_base_once(base_, -1, EV_TIMEOUT,
-                              K8sManager::FindPids, crio, NULL);
+                              K8sHttpHandler::FindPids, crio, NULL);
   if (error != 0) {
     return absl::InternalError("event_base_once returned" +
                                std::to_string(error));
@@ -169,7 +168,7 @@ absl::Status K8sManager::AddContainer(std::string cri,
   return absl::OkStatus();
 }
 
-void K8sManager::FindPids(evutil_socket_t, short, void *arg){ // NOLINT
+void K8sHttpHandler::FindPids(evutil_socket_t, short, void *arg){ // NOLINT
   __Cri *cri = reinterpret_cast<__Cri *>(arg);
   std::vector<pid_t> pids;
   if (cri->cri == "crio") {
