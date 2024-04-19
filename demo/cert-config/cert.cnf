@@ -1,0 +1,21 @@
+[req]
+req_extensions = v3_req
+distinguished_name = req_distinguished_name
+prompt = no
+
+[req_distinguished_name]
+countryName         = US
+stateOrProvinceName = California
+localityName               = Santa Clara
+organizationName           = My Organization 
+organizationalUnitName     = Kubernetes
+commonName                 = KubernetesCA
+
+[ v3_req ]
+basicConstraints = CA:FALSE
+keyUsage = nonRepudiation, digitalSignature, keyEncipherment
+subjectAltName = @alt_names
+
+[ alt_names ]
+DNS.1 = localhost
+DNS.2 = 127.0.0.1
