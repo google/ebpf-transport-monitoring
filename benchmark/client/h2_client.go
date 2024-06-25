@@ -275,8 +275,12 @@ func main() {
 		return
 	}
 
+	// Disable certificate security checks
 	tlsConfig := &tls.Config{
 		InsecureSkipVerify: true,
+	}
+	if client_type == "h3" {
+		http.DefaultTransport.(*http.Transport).TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 	}
 
 	var sim simulation
