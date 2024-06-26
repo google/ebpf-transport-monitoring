@@ -12,4 +12,4 @@ go run test --cfg ./test_input.json
 * `--cfg` specifies the path for the benchmark configuration file.
 * `--log` specifies the path of the output file. The default location for the
   log files is `/tmp/h2_client_log.txt`.
-  `--InsecureSkipVerify` Disables certificate verification from the client side.
+* `--InsecureSkipVerify` Disables certificate verification from the client side.
