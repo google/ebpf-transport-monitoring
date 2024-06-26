@@ -14,4 +14,4 @@ go run test --cfg ./test_input.json
   log files is `/tmp/h2_client_log.txt`.
 * `--qlog` specifies the path for the QUIClog output file. The default location
   is `/tmp/qlog.txt`.
-* `--InsecureSkipVerify` disables certificate verification from the client side.
+* `--insecure_skip_verify` disables certificate verification from the client side.
