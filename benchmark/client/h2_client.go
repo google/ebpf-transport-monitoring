@@ -247,6 +247,7 @@ func main() {
 	cfg := flag.String("cfg", "", "Configuration file")
 	log := flag.String("log", "/tmp/h2_client_log.txt", "logfile")
 	qlog_loc := flag.String("qlog", "/tmp/qlog.txt", "quiclog")
+	InsecureSkipVerify := flag.Bool("InsecureSkipVerify", false, "Disable certificate verification")
 	flag.Parse()
 
 	dat, err := os.ReadFile(*cfg)
@@ -275,11 +276,9 @@ func main() {
 		return
 	}
 
-	// Disable certificate security checks
-	tlsConfig := &tls.Config{
-		InsecureSkipVerify: true,
-	}
-	if client_type == "h3" {
+	tlsConfig := &tls.Config{}
+	if *InsecureSkipVerify {
+		tlsConfig.InsecureSkipVerify = true
 		http.DefaultTransport.(*http.Transport).TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 	}
 
